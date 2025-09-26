@@ -189,14 +189,14 @@ namespace move_base {
       custom_log_file_.open(daily_log_path.c_str(), std::ios::out | std::ios::app);
       if(custom_log_file_.is_open()) {
         custom_log_file_ << "=== MoveBase Custom Log Started at " << ros::Time::now() << " ===" << std::endl;
-        MOVE_BASE_INFO("[MoveBase] Custom logging enabled, saving to: %s", daily_log_path.c_str());
+        MOVE_BASE_INFO("[move_base] Custom logging enabled, saving to: %s", daily_log_path.c_str());
         
         // Start daily log cleanup timer (check every 6 hours)
         log_cleanup_timer_ = private_nh.createTimer(ros::Duration(21600.0), 
                                                     &MoveBase::logCleanupCallback, this);
-        MOVE_BASE_INFO("[MoveBase] Daily log cleanup timer started (checking every 6 hours)");
+        MOVE_BASE_INFO("[move_base] Daily log cleanup timer started (checking every 6 hours)");
       } else {
-        MOVE_BASE_WARN("[MoveBase] Failed to open custom log file: %s", daily_log_path.c_str());
+        MOVE_BASE_WARN("[move_base] Failed to open custom log file: %s", daily_log_path.c_str());
         enable_custom_logging_ = false;
       }
     }

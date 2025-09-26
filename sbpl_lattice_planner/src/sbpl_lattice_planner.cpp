@@ -99,7 +99,7 @@ void SBPLLatticePlanner::initialize(std::string name, costmap_2d::Costmap2DROS* 
   if(!initialized_){
     ros::NodeHandle private_nh("~/"+name);
 
-    ROS_INFO("Name is %s", name.c_str());
+    ROS_INFO("[sbpl_lattice_planner] Name is %s", name.c_str());
 
     private_nh.param("planner_type", planner_type_, string("ARAPlanner"));
     private_nh.param("allocated_time", allocated_time_, 10.0);
@@ -135,7 +135,7 @@ void SBPLLatticePlanner::initialize(std::string name, costmap_2d::Costmap2DROS* 
       env_ = new EnvironmentNAVXYTHETALAT();
     }
     else{
-      ROS_ERROR("XYThetaLattice is currently the only supported environment!\n");
+      ROS_ERROR("[sbpl_lattice_planner] XYThetaLattice is currently the only supported environment!\n");
       exit(1);
     }
 
@@ -148,16 +148,16 @@ void SBPLLatticePlanner::initialize(std::string name, costmap_2d::Costmap2DROS* 
       // cannot detect this problem. If the cost_scaling_factor is too large,
       // SBPL won't run into obstacles, but will always perform an expensive
       // footprint check, no matter how far the nearest obstacle is.
-      ROS_WARN("The costmap value at the robot's circumscribed radius (%f m) is 0.", costmap_ros_->getLayeredCostmap()->getCircumscribedRadius());
-      ROS_WARN("SBPL performance will suffer.");
-      ROS_WARN("Please decrease the costmap's cost_scaling_factor.");
+      ROS_WARN("[sbpl_lattice_planner] The costmap value at the robot's circumscribed radius (%f m) is 0.", costmap_ros_->getLayeredCostmap()->getCircumscribedRadius());
+      ROS_WARN("[sbpl_lattice_planner] SBPL performance will suffer.");
+      ROS_WARN("[sbpl_lattice_planner] Please decrease the costmap's cost_scaling_factor.");
     }
     if(!env_->SetEnvParameter("cost_inscribed_thresh",costMapCostToSBPLCost(costmap_2d::INSCRIBED_INFLATED_OBSTACLE))){
-      ROS_ERROR("Failed to set cost_inscribed_thresh parameter");
+      ROS_ERROR("[sbpl_lattice_planner] Failed to set cost_inscribed_thresh parameter");
       exit(1);
     }
     if(!env_->SetEnvParameter("cost_possibly_circumscribed_thresh", circumscribed_cost_)){
-      ROS_ERROR("Failed to set cost_possibly_circumscribed_thresh parameter");
+      ROS_ERROR("[sbpl_lattice_planner] Failed to set cost_possibly_circumscribed_thresh parameter");
       exit(1);
     }
     int obst_cost_thresh = costMapCostToSBPLCost(costmap_2d::LETHAL_OBSTACLE);
@@ -185,11 +185,11 @@ void SBPLLatticePlanner::initialize(std::string name, costmap_2d::Costmap2DROS* 
       current_env_height_ = costmap_ros_->getCostmap()->getSizeInCellsY();
     }
     catch(SBPL_Exception *e){
-      ROS_ERROR("SBPL encountered a fatal exception: %s", e->what());
+      ROS_ERROR("[sbpl_lattice_planner] SBPL encountered a fatal exception: %s", e->what());
       ret = false;
     }
     if(!ret){
-      ROS_ERROR("SBPL initialization failed!");
+      ROS_ERROR("[sbpl_lattice_planner] SBPL initialization failed!");
       exit(1);
     }
     for (ssize_t ix(0); ix < costmap_ros_->getCostmap()->getSizeInCellsX(); ++ix)
@@ -197,15 +197,15 @@ void SBPLLatticePlanner::initialize(std::string name, costmap_2d::Costmap2DROS* 
         env_->UpdateCost(ix, iy, costMapCostToSBPLCost(costmap_ros_->getCostmap()->getCost(ix,iy)));
 
     if ("ARAPlanner" == planner_type_){
-      ROS_INFO("Planning with ARA*");
+      ROS_INFO("[sbpl_lattice_planner] Planning with ARA*");
       planner_ = new ARAPlanner(env_, forward_search_);
     }
     else if ("ADPlanner" == planner_type_){
-      ROS_INFO("Planning with AD*");
+      ROS_INFO("[sbpl_lattice_planner] Planning with AD*");
       planner_ = new ADPlanner(env_, forward_search_);
     }
     else{
-      ROS_ERROR("ARAPlanner and ADPlanner are currently the only supported planners!\n");
+      ROS_ERROR("[sbpl_lattice_planner] ARAPlanner and ADPlanner are currently the only supported planners!\n");
       exit(1);
     }
 
@@ -261,7 +261,7 @@ unsigned char SBPLLatticePlanner::computeCircumscribedCost() {
   unsigned char result = 0;
 
   if (!costmap_ros_) {
-    ROS_ERROR("Costmap is not initialized");
+    ROS_ERROR("[sbpl_lattice_planner] Costmap is not initialized");
     return 0;
   }
 
@@ -281,24 +281,24 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
                                  const geometry_msgs::PoseStamped& goal,
                                  std::vector<geometry_msgs::PoseStamped>& plan){
   if(!initialized_){
-    ROS_ERROR("Global planner is not initialized");
+    ROS_ERROR("[sbpl_lattice_planner] Global planner is not initialized");
     return false;
   }
 
   bool do_init = false;
   if (current_env_width_ != costmap_ros_->getCostmap()->getSizeInCellsX() ||
       current_env_height_ != costmap_ros_->getCostmap()->getSizeInCellsY()) {
-    ROS_INFO("Costmap dimensions have changed from (%d x %d) to (%d x %d), reinitializing sbpl_lattice_planner.",
+    ROS_INFO("[sbpl_lattice_planner] Costmap dimensions have changed from (%d x %d) to (%d x %d), reinitializing sbpl_lattice_planner.",
              current_env_width_, current_env_height_,
              costmap_ros_->getCostmap()->getSizeInCellsX(), costmap_ros_->getCostmap()->getSizeInCellsY());
     do_init = true;
   }
   else if (footprint_ != costmap_ros_->getRobotFootprint()) {
-    ROS_INFO("Robot footprint has changed, reinitializing sbpl_lattice_planner.");
+    ROS_INFO("[sbpl_lattice_planner] Robot footprint has changed, reinitializing sbpl_lattice_planner.");
     do_init = true;
   }
   else if (circumscribed_cost_ != computeCircumscribedCost()) {
-    ROS_INFO("Cost at circumscribed radius has changed, reinitializing sbpl_lattice_planner.");
+    ROS_INFO("[sbpl_lattice_planner] Cost at circumscribed radius has changed, reinitializing sbpl_lattice_planner.");
     do_init = true;
   }
 
@@ -321,24 +321,24 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
   try{
     int ret = env_->SetStart(start.pose.position.x - costmap_ros_->getCostmap()->getOriginX(), start.pose.position.y - costmap_ros_->getCostmap()->getOriginY(), theta_start);
     if(ret < 0 || planner_->set_start(ret) == 0){
-      ROS_ERROR("ERROR: failed to set start state\n");
+      ROS_ERROR("[sbpl_lattice_planner] ERROR: failed to set start state\n");
       return false;
     }
   }
   catch(SBPL_Exception *e){
-    ROS_ERROR("SBPL encountered a fatal exception while setting the start state");
+    ROS_ERROR("[sbpl_lattice_planner] SBPL encountered a fatal exception while setting the start state");
     return false;
   }
 
   try{
     int ret = env_->SetGoal(goal.pose.position.x - costmap_ros_->getCostmap()->getOriginX(), goal.pose.position.y - costmap_ros_->getCostmap()->getOriginY(), theta_goal);
     if(ret < 0 || planner_->set_goal(ret) == 0){
-      ROS_ERROR("ERROR: failed to set goal state\n");
+      ROS_ERROR("[sbpl_lattice_planner] ERROR: failed to set goal state\n");
       return false;
     }
   }
   catch(SBPL_Exception *e){
-    ROS_ERROR("SBPL encountered a fatal exception while setting the goal state");
+    ROS_ERROR("[sbpl_lattice_planner] SBPL encountered a fatal exception while setting the goal state");
     return false;
   }
   
@@ -388,7 +388,7 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
       planner_->force_planning_from_scratch();
   }
   catch(SBPL_Exception *e){
-    ROS_ERROR("SBPL failed to update the costmap");
+    ROS_ERROR("[sbpl_lattice_planner] SBPL failed to update the costmap");
     return false;
   }
 
@@ -405,13 +405,13 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
     if(ret)
       ROS_DEBUG("Solution is found\n");
     else{
-      ROS_INFO("Solution not found\n");
+      ROS_INFO("[sbpl_lattice_planner] Solution not found\n");
       publishStats(solution_cost, 0, start, goal);
       return false;
     }
   }
   catch(SBPL_Exception *e){
-    ROS_ERROR("SBPL encountered a fatal exception while planning");
+    ROS_ERROR("[sbpl_lattice_planner] SBPL encountered a fatal exception while planning");
     return false;
   }
 
@@ -422,7 +422,7 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
     env_->ConvertStateIDPathintoXYThetaPath(&solution_stateIDs, &sbpl_path);
   }
   catch(SBPL_Exception *e){
-    ROS_ERROR("SBPL encountered a fatal exception while reconstructing the path");
+    ROS_ERROR("[sbpl_lattice_planner] SBPL encountered a fatal exception while reconstructing the path");
     return false;
   }
   // if the plan has zero points, add a single point to make move_base happy

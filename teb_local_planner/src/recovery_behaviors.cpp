@@ -108,7 +108,7 @@ bool FailureDetector::detect(double v_eps, double omega_eps)
     if (std::abs(v_mean) < v_eps && std::abs(omega_mean) < omega_eps && omega_zero_crossings>1 ) 
     {
         oscillating_ = true;
-        ROS_WARN_STREAM_THROTTLE(1.0, "[TebLocalPlanner] Oscillation detected: v_mean=" << v_mean 
+        ROS_WARN_STREAM_THROTTLE(1.0, "[teb_local_planner] Oscillation detected: v_mean=" << v_mean 
                                 << ", omega_mean=" << omega_mean 
                                 << ", zero_crossings=" << omega_zero_crossings);
     }

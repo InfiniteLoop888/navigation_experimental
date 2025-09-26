@@ -265,7 +265,7 @@ namespace move_base {
       // Custom logging macros that automatically save to custom log file
       #define MOVE_BASE_INFO(msg, ...) \
         do { \
-          ROS_INFO("[MoveBase] " msg, ##__VA_ARGS__); \
+          ROS_INFO("[move_base] " msg, ##__VA_ARGS__); \
           if(enable_custom_logging_ && custom_log_file_.is_open()) { \
             char buffer[1024]; \
             snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
@@ -276,7 +276,7 @@ namespace move_base {
       
       #define MOVE_BASE_WARN(msg, ...) \
         do { \
-          ROS_WARN("[MoveBase] " msg, ##__VA_ARGS__); \
+          ROS_WARN("[move_base] " msg, ##__VA_ARGS__); \
           if(enable_custom_logging_ && custom_log_file_.is_open()) { \
             char buffer[1024]; \
             snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
@@ -287,7 +287,7 @@ namespace move_base {
       
       #define MOVE_BASE_ERROR(msg, ...) \
         do { \
-          ROS_ERROR("[MoveBase] " msg, ##__VA_ARGS__); \
+          ROS_ERROR("[move_base] " msg, ##__VA_ARGS__); \
           if(enable_custom_logging_ && custom_log_file_.is_open()) { \
             char buffer[1024]; \
             snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
@@ -298,7 +298,7 @@ namespace move_base {
       
       #define MOVE_BASE_ERROR_THROTTLE(rate, msg, ...) \
         do { \
-          ROS_ERROR_THROTTLE(rate, "[MoveBase] " msg, ##__VA_ARGS__); \
+          ROS_ERROR_THROTTLE(rate, "[move_base] " msg, ##__VA_ARGS__); \
           if(enable_custom_logging_ && custom_log_file_.is_open()) { \
             char buffer[1024]; \
             snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
@@ -309,7 +309,7 @@ namespace move_base {
       
       #define MOVE_BASE_WARN_THROTTLE(rate, msg, ...) \
         do { \
-          ROS_WARN_THROTTLE(rate, "[MoveBase] " msg, ##__VA_ARGS__); \
+          ROS_WARN_THROTTLE(rate, "[move_base] " msg, ##__VA_ARGS__); \
           if(enable_custom_logging_ && custom_log_file_.is_open()) { \
             char buffer[1024]; \
             snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \

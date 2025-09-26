@@ -63,7 +63,7 @@ void PolygonObstacle::calcCentroid()
     return;
   }
   
-  ROS_DEBUG_STREAM_THROTTLE(2.0, "[TebLocalPlanner] PolygonObstacle::calcCentroid(): processing polygon with " << vertices_.size() << " vertices");
+  ROS_DEBUG_STREAM_THROTTLE(2.0, "[teb_local_planner] PolygonObstacle::calcCentroid(): processing polygon with " << vertices_.size() << " vertices");
   
   // if polygon is a point
   if (noVertices()==1)
