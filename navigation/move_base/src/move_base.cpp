@@ -56,8 +56,7 @@ namespace move_base {
     blp_loader_("nav_core", "nav_core::BaseLocalPlanner"),
     recovery_loader_("nav_core", "nav_core::RecoveryBehavior"),
     planner_plan_(NULL), latest_plan_(NULL), controller_plan_(NULL),
-    runPlanner_(false), setup_(false), p_freq_change_(false), c_freq_change_(false), new_global_plan_(false),
-    enable_custom_logging_(false) {
+    runPlanner_(false), setup_(false), p_freq_change_(false), c_freq_change_(false), new_global_plan_(false) {
 
     as_ = new MoveBaseActionServer(ros::NodeHandle(), "move_base", [this](auto& goal){ executeCb(goal); }, false);
 
@@ -77,13 +76,6 @@ namespace move_base {
     private_nh.param("planner_patience", planner_patience_, 5.0);
     private_nh.param("controller_patience", controller_patience_, 15.0);
     private_nh.param("max_planning_retries", max_planning_retries_, -1);  // disabled by default
-
-    // Custom logging parameters
-    private_nh.param("custom_log_path", custom_log_path_, std::string(""));
-    private_nh.param("enable_custom_logging", enable_custom_logging_, false);
-    
-    // Simplified log management parameters
-    private_nh.param("log_retention_days", log_retention_days_, 7.0);   // Default keep 7 days
 
     private_nh.param("oscillation_timeout", oscillation_timeout_, 0.0);
     private_nh.param("oscillation_distance", oscillation_distance_, 0.5);
@@ -144,7 +136,7 @@ namespace move_base {
     //create a local planner
     try {
       tc_ = blp_loader_.createInstance(local_planner);
-      MOVE_BASE_INFO("Created local_planner %s", local_planner.c_str());
+      ROS_INFO("Created local_planner %s", local_planner.c_str());
       tc_->initialize(blp_loader_.getName(local_planner), &tf_, controller_costmap_ros_);
     } catch (const pluginlib::PluginlibException& ex) {
       ROS_FATAL("Failed to create the %s planner, are you sure it is properly registered and that the containing library is built? Exception: %s", local_planner.c_str(), ex.what());
@@ -179,27 +171,6 @@ namespace move_base {
 
     //we'll start executing recovery behaviors at the beginning of our list
     recovery_index_ = 0;
-
-    // Initialize custom logging if enabled
-    if(enable_custom_logging_ && !custom_log_path_.empty()) {
-      // Get current date for daily log rotation
-      current_log_date_ = getCurrentDateString();
-      std::string daily_log_path = getDailyLogFileName(custom_log_path_, current_log_date_);
-      
-      custom_log_file_.open(daily_log_path.c_str(), std::ios::out | std::ios::app);
-      if(custom_log_file_.is_open()) {
-        custom_log_file_ << "=== MoveBase Custom Log Started at " << ros::Time::now() << " ===" << std::endl;
-        MOVE_BASE_INFO("[move_base] Custom logging enabled, saving to: %s", daily_log_path.c_str());
-        
-        // Start daily log cleanup timer (check every 6 hours)
-        log_cleanup_timer_ = private_nh.createTimer(ros::Duration(21600.0), 
-                                                    &MoveBase::logCleanupCallback, this);
-        MOVE_BASE_INFO("[move_base] Daily log cleanup timer started (checking every 6 hours)");
-      } else {
-        MOVE_BASE_WARN("[move_base] Failed to open custom log file: %s", daily_log_path.c_str());
-        enable_custom_logging_ = false;
-      }
-    }
 
     //we're all set up now so we can start the action server
     as_->start();
@@ -254,7 +225,7 @@ namespace move_base {
     if(config.base_global_planner != last_config_.base_global_planner) {
       boost::shared_ptr<nav_core::BaseGlobalPlanner> old_planner = planner_;
       //initialize the global planner
-      MOVE_BASE_INFO("Loading global planner %s", config.base_global_planner.c_str());
+      ROS_INFO("Loading global planner %s", config.base_global_planner.c_str());
       try {
         planner_ = bgp_loader_.createInstance(config.base_global_planner);
 
@@ -379,12 +350,12 @@ namespace move_base {
 
   bool MoveBase::planService(nav_msgs::GetPlan::Request &req, nav_msgs::GetPlan::Response &resp){
     if(as_->isActive()){
-      MOVE_BASE_ERROR("move_base must be in an inactive state to make a plan for an external user");
+      ROS_ERROR("move_base must be in an inactive state to make a plan for an external user");
       return false;
     }
     //make sure we have a costmap for our planner
     if(planner_costmap_ros_ == NULL){
-      MOVE_BASE_ERROR("move_base cannot make a plan for you because it doesn't have a costmap");
+      ROS_ERROR("move_base cannot make a plan for you because it doesn't have a costmap");
       return false;
     }
 
@@ -394,7 +365,7 @@ namespace move_base {
     {
         geometry_msgs::PoseStamped global_pose;
         if(!getRobotPose(global_pose, planner_costmap_ros_)){
-          MOVE_BASE_ERROR("move_base cannot make a plan for you because it could not get the start pose of the robot");
+          ROS_ERROR("move_base cannot make a plan for you because it could not get the start pose of the robot");
           return false;
         }
         start = global_pose;
@@ -499,12 +470,6 @@ namespace move_base {
 
     planner_.reset();
     tc_.reset();
-    
-    // Close custom log file if open
-    if(custom_log_file_.is_open()) {
-      custom_log_file_ << "=== MoveBase Custom Log Ended at " << ros::Time::now() << " ===" << std::endl;
-      custom_log_file_.close();
-    }
   }
 
   bool MoveBase::makePlan(const geometry_msgs::PoseStamped& goal, std::vector<geometry_msgs::PoseStamped>& plan){
@@ -515,14 +480,14 @@ namespace move_base {
 
     //since this gets called on handle activate
     if(planner_costmap_ros_ == NULL) {
-      MOVE_BASE_ERROR("Planner costmap ROS is NULL, unable to create global plan");
+      ROS_ERROR("Planner costmap ROS is NULL, unable to create global plan");
       return false;
     }
 
     //get the starting pose of the robot
     geometry_msgs::PoseStamped global_pose;
     if(!getRobotPose(global_pose, planner_costmap_ros_)) {
-      MOVE_BASE_WARN("Unable to get starting pose of robot, unable to create global plan");
+      ROS_WARN("Unable to get starting pose of robot, unable to create global plan");
       return false;
     }
 
@@ -548,7 +513,7 @@ namespace move_base {
   bool MoveBase::isQuaternionValid(const geometry_msgs::Quaternion& q){
     //first we need to check if the quaternion has nan's or infs
     if(!std::isfinite(q.x) || !std::isfinite(q.y) || !std::isfinite(q.z) || !std::isfinite(q.w)){
-      MOVE_BASE_ERROR("Quaternion has nans or infs... discarding as a navigation goal");
+      ROS_ERROR("Quaternion has nans or infs... discarding as a navigation goal");
       return false;
     }
 
@@ -556,7 +521,7 @@ namespace move_base {
 
     //next, we need to check if the length of the quaternion is close to zero
     if(tf_q.length2() < 1e-6){
-      MOVE_BASE_ERROR("Quaternion has length close to zero... discarding as navigation goal");
+      ROS_ERROR("Quaternion has length close to zero... discarding as navigation goal");
       return false;
     }
 
@@ -568,7 +533,7 @@ namespace move_base {
     double dot = up.dot(up.rotate(tf_q.getAxis(), tf_q.getAngle()));
 
     if(fabs(dot - 1) > 1e-3){
-      MOVE_BASE_ERROR("Quaternion is invalid... for navigation the z-axis of the quaternion must be close to vertical.");
+      ROS_ERROR("Quaternion is invalid... for navigation the z-axis of the quaternion must be close to vertical.");
       return false;
     }
 
@@ -588,7 +553,7 @@ namespace move_base {
       tf_.transform(goal_pose_msg, global_pose, global_frame);
     }
     catch(tf2::TransformException& ex){
-      MOVE_BASE_WARN("Failed to transform the goal pose from %s into the %s frame: %s",
+      ROS_WARN("Failed to transform the goal pose from %s into the %s frame: %s",
           goal_pose.header.frame_id.c_str(), global_frame.c_str(), ex.what());
       return goal_pose_msg;
     }
@@ -686,24 +651,24 @@ namespace move_base {
 
   void MoveBase::executeCb(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal)
   {
-    MOVE_BASE_INFO("Received new navigation goal: (%.2f, %.2f, %.2f)", 
+    ROS_INFO("[move_base] Received new navigation goal: (%.2f, %.2f, %.2f)", 
                    move_base_goal->target_pose.pose.position.x,
                    move_base_goal->target_pose.pose.position.y,
                    move_base_goal->target_pose.pose.position.z);
     
     if(!isQuaternionValid(move_base_goal->target_pose.pose.orientation)){
-      MOVE_BASE_ERROR("Invalid quaternion in goal pose, aborting navigation");
+      ROS_ERROR("[move_base] Invalid quaternion in goal pose, aborting navigation");
       as_->setAborted(move_base_msgs::MoveBaseResult(), "Aborting on goal because it was sent with an invalid quaternion");
       return;
     }
 
     geometry_msgs::PoseStamped goal = goalToGlobalFrame(move_base_goal->target_pose);
-    MOVE_BASE_INFO("Goal transformed to global frame: (%.2f, %.2f, %.2f)", 
+    ROS_INFO("[move_base] Goal transformed to global frame: (%.2f, %.2f, %.2f)", 
                    goal.pose.position.x, goal.pose.position.y, goal.pose.position.z);
 
     publishZeroVelocity();
     //we have a goal so start the planner
-    MOVE_BASE_INFO("Starting path planner...");
+    ROS_INFO("[move_base] Starting path planner...");
     boost::unique_lock<boost::recursive_mutex> lock(planner_mutex_);
     planner_goal_ = goal;
     runPlanner_ = true;
@@ -730,7 +695,7 @@ namespace move_base {
     {
       if(c_freq_change_)
       {
-        MOVE_BASE_INFO("Setting controller frequency to %.2f", controller_frequency_);
+        ROS_INFO("Setting controller frequency to %.2f", controller_frequency_);
         r = ros::Rate(controller_frequency_);
         c_freq_change_ = false;
       }
@@ -773,7 +738,7 @@ namespace move_base {
           resetState();
 
           //notify the ActionServer that we've successfully preempted
-          MOVE_BASE_INFO("Current navigation goal has been preempted");
+          ROS_INFO("[move_base] Current navigation goal has been preempted");
           ROS_DEBUG_NAMED("move_base","Move base preempting the current goal");
           as_->setPreempted();
 
@@ -826,7 +791,7 @@ namespace move_base {
       r.sleep();
       //make sure to sleep for the remainder of our cycle time
       if(r.cycleTime() > ros::Duration(1 / controller_frequency_) && state_ == CONTROLLING)
-        MOVE_BASE_WARN("Control loop missed its desired rate of %.4fHz... the loop actually took %.4f seconds", controller_frequency_, r.cycleTime().toSec());
+        ROS_WARN("Control loop missed its desired rate of %.4fHz... the loop actually took %.4f seconds", controller_frequency_, r.cycleTime().toSec());
     }
 
     //wake up the planner thread so that it can exit cleanly
@@ -836,7 +801,7 @@ namespace move_base {
     lock.unlock();
 
     //if the node is killed then we'll abort and return
-    MOVE_BASE_WARN("Navigation aborted due to node shutdown");
+    ROS_WARN("[move_base] Navigation aborted due to node shutdown");
     as_->setAborted(move_base_msgs::MoveBaseResult(), "Aborting on the goal because the node has been killed");
     return;
   }
@@ -874,8 +839,8 @@ namespace move_base {
 
     //check that the observation buffers for the costmap are current, we don't want to drive blind
     if(!controller_costmap_ros_->isCurrent()){
-      MOVE_BASE_WARN("Sensor data is outdated, stopping robot for safety");
-      MOVE_BASE_WARN("[%s]:Sensor data is out of date, we're not going to allow commanding of the base for safety",ros::this_node::getName().c_str());
+      ROS_WARN("[move_base] Sensor data is outdated, stopping robot for safety");
+      ROS_WARN("[%s]:Sensor data is out of date, we're not going to allow commanding of the base for safety",ros::this_node::getName().c_str());
       publishZeroVelocity();
       return false;
     }
@@ -885,7 +850,7 @@ namespace move_base {
       //make sure to set the new plan flag to false
       new_global_plan_ = false;
 
-      MOVE_BASE_INFO("Got new global path plan, updating controller...");
+      ROS_INFO("[move_base] Got new global path plan, updating controller...");
       ROS_DEBUG_NAMED("move_base","Got a new plan...swap pointers");
 
       //do a pointer swap under mutex
@@ -899,7 +864,7 @@ namespace move_base {
 
       if(!tc_->setPlan(*controller_plan_)){
         //ABORT and SHUTDOWN COSTMAPS
-        MOVE_BASE_ERROR("Failed to pass global plan to the controller, aborting.");
+        ROS_ERROR("[move_base] Failed to pass global plan to the controller, aborting.");
         resetState();
 
         //disable the planner thread
@@ -922,7 +887,7 @@ namespace move_base {
       case PLANNING:
         {
           if(last_logged_state_ != PLANNING) {
-            MOVE_BASE_INFO("State: Planning path...");
+            ROS_INFO("[move_base] State: change to planning path...");
             last_logged_state_ = PLANNING;
           }
           boost::recursive_mutex::scoped_lock lock(planner_mutex_);
@@ -935,14 +900,14 @@ namespace move_base {
       //if we're controlling, we'll attempt to find valid velocity commands
       case CONTROLLING:
         if(last_logged_state_ != CONTROLLING) {
-          MOVE_BASE_INFO("State: Controlling motion...");
+          ROS_INFO("[move_base] State: change to controlling motion...");
           last_logged_state_ = CONTROLLING;
         }
         ROS_DEBUG_NAMED("move_base","In controlling state.");
 
         //check to see if we've reached our goal
         if(tc_->isGoalReached()){
-          MOVE_BASE_INFO("Goal reached!");
+          ROS_INFO("[move_base] Goal reached!");
           ROS_DEBUG_NAMED("move_base","Goal reached!");
           resetState();
 
@@ -959,7 +924,7 @@ namespace move_base {
         if(oscillation_timeout_ > 0.0 &&
             last_oscillation_reset_ + ros::Duration(oscillation_timeout_) < ros::Time::now())
         {
-          MOVE_BASE_WARN("Robot oscillation detected, starting recovery behavior");
+          ROS_WARN("[move_base] Robot oscillation detected, starting recovery behavior");
           publishZeroVelocity();
           state_ = CLEARING;
           recovery_trigger_ = OSCILLATION_R;
@@ -973,7 +938,6 @@ namespace move_base {
                            cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z );
           last_valid_control_ = ros::Time::now();
           //make sure that we send the velocity command to the base
-
           vel_pub_.publish(cmd_vel);
           if(recovery_trigger_ == CONTROLLING_R)
             recovery_index_ = 0;
@@ -1010,13 +974,13 @@ namespace move_base {
       //we'll try to clear out space with any user-provided recovery behaviors
       case CLEARING:
         if(last_logged_state_ != CLEARING) {
-          MOVE_BASE_WARN("State: Clearing obstacles/recovery behavior...");
+          ROS_WARN("[move_base] State: start clearing obstacles/recovery behavior...");
           last_logged_state_ = CLEARING;
         }
         ROS_DEBUG_NAMED("move_base","In clearing/recovery state");
         //we'll invoke whatever recovery behavior we're currently on if they're enabled
         if(recovery_behavior_enabled_ && recovery_index_ < recovery_behaviors_.size()){
-          MOVE_BASE_WARN("Executing recovery behavior %u/%zu", recovery_index_+1, recovery_behaviors_.size());
+          ROS_WARN("[move_base] Executing recovery behavior %u/%zu", recovery_index_+1, recovery_behaviors_.size());
           ROS_DEBUG_NAMED("move_base_recovery","Executing behavior %u of %zu", recovery_index_+1, recovery_behaviors_.size());
 
           move_base_msgs::RecoveryStatus msg;
@@ -1051,15 +1015,15 @@ namespace move_base {
           ROS_DEBUG_NAMED("move_base_recovery","Something should abort after this.");
 
           if(recovery_trigger_ == CONTROLLING_R){
-            MOVE_BASE_ERROR("Aborting because a valid control could not be found. Even after executing all recovery behaviors");
+            ROS_ERROR("[move_base] Aborting because a valid control could not be found. Even after executing all recovery behaviors");
             as_->setAborted(move_base_msgs::MoveBaseResult(), "Failed to find a valid control. Even after executing recovery behaviors.");
           }
           else if(recovery_trigger_ == PLANNING_R){
-            MOVE_BASE_ERROR("Aborting because a valid plan could not be found. Even after executing all recovery behaviors");
+            ROS_ERROR("[move_base] Aborting because a valid plan could not be found. Even after executing all recovery behaviors");
             as_->setAborted(move_base_msgs::MoveBaseResult(), "Failed to find a valid plan. Even after executing recovery behaviors.");
           }
           else if(recovery_trigger_ == OSCILLATION_R){
-            MOVE_BASE_ERROR("Aborting because the robot appears to be oscillating over and over. Even after executing all recovery behaviors");
+            ROS_ERROR("[move_base] Aborting because the robot appears to be oscillating over and over. Even after executing all recovery behaviors");
             as_->setAborted(move_base_msgs::MoveBaseResult(), "Robot is oscillating. Even after executing recovery behaviors.");
           }
           resetState();
@@ -1067,8 +1031,8 @@ namespace move_base {
         }
         break;
       default:
-        MOVE_BASE_ERROR("Navigation failed: Unexpected state reached - this is a bug!");
-        MOVE_BASE_ERROR("This case should never be reached, something is wrong, aborting");
+        ROS_ERROR("[move_base] Navigation failed: Unexpected state reached - this is a bug!");
+        ROS_ERROR("[move_base] This case should never be reached, something is wrong, aborting");
         resetState();
         //disable the planner thread
         boost::unique_lock<boost::recursive_mutex> lock(planner_mutex_);
@@ -1096,7 +1060,7 @@ namespace move_base {
                     std::string name_i = behavior_list[i]["name"];
                     std::string name_j = behavior_list[j]["name"];
                     if(name_i == name_j){
-                      MOVE_BASE_ERROR("A recovery behavior with the name %s already exists, this is not allowed. Using the default recovery behaviors instead.",
+                      ROS_ERROR("A recovery behavior with the name %s already exists, this is not allowed. Using the default recovery behaviors instead.",
                           name_i.c_str());
                       return false;
                     }
@@ -1105,12 +1069,12 @@ namespace move_base {
               }
             }
             else{
-              MOVE_BASE_ERROR("Recovery behaviors must have a name and a type and this does not. Using the default recovery behaviors instead.");
+              ROS_ERROR("Recovery behaviors must have a name and a type and this does not. Using the default recovery behaviors instead.");
               return false;
             }
           }
           else{
-            MOVE_BASE_ERROR("Recovery behaviors must be specified as maps, but they are XmlRpcType %d. We'll use the default recovery behaviors instead.",
+            ROS_ERROR("Recovery behaviors must be specified as maps, but they are XmlRpcType %d. We'll use the default recovery behaviors instead.",
                 behavior_list[i].getType());
             return false;
           }
@@ -1125,7 +1089,7 @@ namespace move_base {
               for(unsigned int i = 0; i < classes.size(); ++i){
                 if(behavior_list[i]["type"] == recovery_loader_.getName(classes[i])){
                   //if we've found a match... we'll get the fully qualified name and break out of the loop
-                  MOVE_BASE_WARN("Recovery behavior specifications should now include the package name. You are using a deprecated API. Please switch from %s to %s in your yaml file.",
+                  ROS_WARN("Recovery behavior specifications should now include the package name. You are using a deprecated API. Please switch from %s to %s in your yaml file.",
                       std::string(behavior_list[i]["type"]).c_str(), classes[i].c_str());
                   behavior_list[i]["type"] = classes[i];
                   break;
@@ -1137,7 +1101,7 @@ namespace move_base {
 
             //shouldn't be possible, but it won't hurt to check
             if(behavior.get() == NULL){
-              MOVE_BASE_ERROR("The ClassLoader returned a null pointer without throwing an exception. This should not happen");
+              ROS_ERROR("The ClassLoader returned a null pointer without throwing an exception. This should not happen");
               return false;
             }
 
@@ -1147,13 +1111,13 @@ namespace move_base {
             recovery_behaviors_.push_back(behavior);
           }
           catch(pluginlib::PluginlibException& ex){
-            MOVE_BASE_ERROR("Failed to load a plugin. Using default recovery behaviors. Error: %s", ex.what());
+            ROS_ERROR("Failed to load a plugin. Using default recovery behaviors. Error: %s", ex.what());
             return false;
           }
         }
       }
       else{
-        MOVE_BASE_ERROR("The recovery behavior specification must be a list, but is of XmlRpcType %d. We'll use the default recovery behaviors instead.",
+        ROS_ERROR("The recovery behavior specification must be a list, but is of XmlRpcType %d. We'll use the default recovery behaviors instead.",
             behavior_list.getType());
         return false;
       }
@@ -1246,17 +1210,17 @@ namespace move_base {
     }
     catch (tf2::LookupException& ex)
     {
-      MOVE_BASE_ERROR_THROTTLE(1.0, "No Transform available Error looking up robot pose: %s\n", ex.what());
+      ROS_ERROR_THROTTLE(1.0, "No Transform available Error looking up robot pose: %s\n", ex.what());
       return false;
     }
     catch (tf2::ConnectivityException& ex)
     {
-      MOVE_BASE_ERROR_THROTTLE(1.0, "Connectivity Error looking up robot pose: %s\n", ex.what());
+      ROS_ERROR_THROTTLE(1.0, "Connectivity Error looking up robot pose: %s\n", ex.what());
       return false;
     }
     catch (tf2::ExtrapolationException& ex)
     {
-      MOVE_BASE_ERROR_THROTTLE(1.0, "Extrapolation Error looking up robot pose: %s\n", ex.what());
+      ROS_ERROR_THROTTLE(1.0, "Extrapolation Error looking up robot pose: %s\n", ex.what());
       return false;
     }
 
@@ -1264,108 +1228,12 @@ namespace move_base {
     if (!global_pose.header.stamp.isZero() &&
         current_time.toSec() - global_pose.header.stamp.toSec() > costmap->getTransformTolerance())
     {
-      MOVE_BASE_WARN_THROTTLE(1.0, "Transform timeout for %s. " \
+      ROS_WARN_THROTTLE(1.0, "Transform timeout for %s. " \
                         "Current time: %.4f, pose stamp: %.4f, tolerance: %.4f", costmap->getName().c_str(),
                         current_time.toSec(), global_pose.header.stamp.toSec(), costmap->getTransformTolerance());
       return false;
     }
 
     return true;
-  }
-
-  void MoveBase::writeCustomLog(const std::string& level, const std::string& message) {
-    if(enable_custom_logging_ && custom_log_file_.is_open()) {
-      // Check if daily log rotation is needed before writing
-      checkDailyLogRotation();
-      
-      custom_log_file_ << "[" << ros::Time::now() << "] [" << level << "] " << message << std::endl;
-      custom_log_file_.flush();  // Ensure immediate writing
-    }
-  }
-
-  void MoveBase::checkDailyLogRotation() {
-    if(!enable_custom_logging_ || custom_log_path_.empty()) return;
-    
-    std::string today = getCurrentDateString();
-    if(today != current_log_date_) {
-      MOVE_BASE_INFO("New day detected (%s), rotating to new log file", today.c_str());
-      rotateToNewDay();
-    }
-  }
-
-  void MoveBase::rotateToNewDay() {
-    if(!enable_custom_logging_ || custom_log_path_.empty()) return;
-    
-    // Close current log file
-    if(custom_log_file_.is_open()) {
-      custom_log_file_ << "=== MoveBase Custom Log Ended at " << ros::Time::now() << " ===" << std::endl;
-      custom_log_file_.close();
-    }
-    
-    // Update current date and open new log file
-    current_log_date_ = getCurrentDateString();
-    std::string new_log_path = getDailyLogFileName(custom_log_path_, current_log_date_);
-    
-    custom_log_file_.open(new_log_path.c_str(), std::ios::out | std::ios::app);
-    if(custom_log_file_.is_open()) {
-      custom_log_file_ << "=== MoveBase Custom Log Started at " << ros::Time::now() << " ===" << std::endl;
-      MOVE_BASE_INFO("Rotated to new daily log file: %s", new_log_path.c_str());
-    } else {
-      MOVE_BASE_WARN("Failed to open new daily log file: %s", new_log_path.c_str());
-      enable_custom_logging_ = false;
-    }
-  }
-
-  void MoveBase::cleanupOldLogs() {
-    if(!enable_custom_logging_ || custom_log_path_.empty()) return;
-    
-    time_t current_time = time(NULL);
-    time_t cutoff_time = current_time - (time_t)(log_retention_days_ * 24 * 3600);
-    
-    // Get log directory
-    std::string log_dir = custom_log_path_.substr(0, custom_log_path_.find_last_of("/"));
-    std::string log_base = custom_log_path_.substr(custom_log_path_.find_last_of("/") + 1);
-    
-    // Clean up old daily log files
-    for(int i = 0; i < (int)log_retention_days_; i++) {
-      time_t file_time = current_time - (i * 24 * 3600);
-      struct tm* file_tm = localtime(&file_time);
-      char date_str[11];
-      strftime(date_str, sizeof(date_str), "%Y-%m-%d", file_tm);
-      
-      std::string old_log_file = getDailyLogFileName(custom_log_path_, std::string(date_str));
-      struct stat file_stat;
-      
-      if(stat(old_log_file.c_str(), &file_stat) == 0) {
-        if(file_stat.st_mtime < cutoff_time) {
-          if(remove(old_log_file.c_str()) == 0) {
-            MOVE_BASE_INFO("Cleaned up old daily log file: %s", old_log_file.c_str());
-          }
-        }
-      }
-    }
-  }
-
-  void MoveBase::logCleanupCallback(const ros::TimerEvent&) {
-    MOVE_BASE_INFO("Running daily log cleanup...");
-    checkDailyLogRotation();  // Check if we need to rotate to new day
-    cleanupOldLogs();         // Clean up old log files
-  }
-
-  std::string MoveBase::getDailyLogFileName(const std::string& base_path, const std::string& date) {
-    size_t dot_pos = base_path.find_last_of(".");
-    if(dot_pos != std::string::npos) {
-      return base_path.substr(0, dot_pos) + "_" + date + base_path.substr(dot_pos);
-    } else {
-      return base_path + "_" + date;
-    }
-  }
-
-  std::string MoveBase::getCurrentDateString() {
-    time_t now = time(NULL);
-    struct tm* tm_info = localtime(&now);
-    char date_str[11];
-    strftime(date_str, sizeof(date_str), "%Y-%m-%d", tm_info);
-    return std::string(date_str);
   }
 };

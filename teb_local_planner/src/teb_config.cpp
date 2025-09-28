@@ -43,7 +43,7 @@ namespace teb_local_planner
     
 void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
 {
-  ROS_INFO("[teb_local_planner] Loading TEB configuration parameters...");
+  ROS_INFO("[TebLocalPlanner] Loading TEB configuration parameters...");
     
   nh.param("odom_topic", odom_topic, odom_topic);
   nh.param("map_frame", map_frame, map_frame);
@@ -183,7 +183,7 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
   checkDeprecated(nh);
   
   // Log configuration summary
-  ROS_INFO("[teb_local_planner] TEB config loaded: max_vel=%.2f, dt_ref=%.3f, hcp_enabled=%s", 
+  ROS_INFO("[TebLocalPlanner] TEB config loaded: max_vel=%.2f, dt_ref=%.3f, hcp_enabled=%s", 
            robot.max_vel_x, trajectory.dt_ref, 
            hcp.enable_homotopy_class_planning ? "true" : "false");
 }
@@ -224,7 +224,7 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
   robot.use_proportional_saturation = cfg.use_proportional_saturation;
   if (cfg.max_vel_trans == 0.0)
   {
-    ROS_INFO_STREAM("[teb_local_planner] max_vel_trans is not set, setting it equal to max_vel_x: " << robot.max_vel_x);
+    ROS_INFO_STREAM("[TebLocalPlanner] max_vel_trans is not set, setting it equal to max_vel_x: " << robot.max_vel_x);
     cfg.max_vel_trans = robot.max_vel_x;
   }
   robot.max_vel_trans = cfg.max_vel_trans;
@@ -312,8 +312,6 @@ void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)
     
 void TebConfig::checkParameters() const
 {
-  ROS_DEBUG("[teb_local_planner] TEB config parameter validation started...");
-  
   // positive backward velocity?
   if (robot.max_vel_x_backwards <= 0)
     ROS_WARN("TebLocalPlannerROS() Param Warning: Do not choose max_vel_x_backwards to be <=0. Disable backwards driving by increasing the optimization weight for penalyzing backwards driving.");

@@ -43,6 +43,7 @@
 #include <costmap_2d/inflation_layer.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf/transform_datatypes.h>
+#include <algorithm>
 
 using namespace std;
 using namespace ros;
@@ -313,7 +314,7 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
 
   plan.clear();
 
-  ROS_INFO("[sbpl_lattice_planner] getting start point (%g,%g) goal point (%g,%g)",
+  ROS_INFO_THROTTLE(5.0, "[sbpl_lattice_planner] getting start point (%g,%g) goal point (%g,%g)",
            start.pose.position.x, start.pose.position.y,goal.pose.position.x, goal.pose.position.y);
   double theta_start = 2 * atan2(start.pose.orientation.z, start.pose.orientation.w);
   double theta_goal = 2 * atan2(goal.pose.orientation.z, goal.pose.orientation.w);
@@ -321,8 +322,24 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
   try{
     int ret = env_->SetStart(start.pose.position.x - costmap_ros_->getCostmap()->getOriginX(), start.pose.position.y - costmap_ros_->getCostmap()->getOriginY(), theta_start);
     if(ret < 0 || planner_->set_start(ret) == 0){
+      // 检查起始点是否有障碍物
+      unsigned int mx, my;
+      if(costmap_ros_->getCostmap()->worldToMap(start.pose.position.x, start.pose.position.y, mx, my)) {
+        unsigned char cost = costmap_ros_->getCostmap()->getCost(mx, my);
+        if(cost == costmap_2d::LETHAL_OBSTACLE) {
+          ROS_ERROR("[sbpl_lattice_planner] ERROR: Start point is in lethal obstacle (cost=%d)", cost);
+        } else if(cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+          ROS_ERROR("[sbpl_lattice_planner] ERROR: Start point is in inscribed inflated obstacle (cost=%d)", cost);
+        } else {
+          ROS_ERROR("[sbpl_lattice_planner] ERROR: Start point has invalid cost (cost=%d)", cost);
+        }
+      } else {
+        ROS_ERROR("[sbpl_lattice_planner] ERROR: Start point is outside costmap bounds");
+      }
       ROS_ERROR("[sbpl_lattice_planner] ERROR: failed to set start state\n");
       return false;
+    } else {
+      ROS_INFO_THROTTLE(5.0, "[sbpl_lattice_planner] Start state set successfully (state_id=%d)", ret);
     }
   }
   catch(SBPL_Exception *e){
@@ -333,8 +350,24 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
   try{
     int ret = env_->SetGoal(goal.pose.position.x - costmap_ros_->getCostmap()->getOriginX(), goal.pose.position.y - costmap_ros_->getCostmap()->getOriginY(), theta_goal);
     if(ret < 0 || planner_->set_goal(ret) == 0){
+      // 检查目标点是否有障碍物
+      unsigned int mx, my;
+      if(costmap_ros_->getCostmap()->worldToMap(goal.pose.position.x, goal.pose.position.y, mx, my)) {
+        unsigned char cost = costmap_ros_->getCostmap()->getCost(mx, my);
+        if(cost == costmap_2d::LETHAL_OBSTACLE) {
+          ROS_ERROR("[sbpl_lattice_planner] ERROR: Goal point is in lethal obstacle (cost=%d)", cost);
+        } else if(cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+          ROS_ERROR("[sbpl_lattice_planner] ERROR: Goal point is in inscribed inflated obstacle (cost=%d)", cost);
+        } else {
+          ROS_ERROR("[sbpl_lattice_planner] ERROR: Goal point has invalid cost (cost=%d)", cost);
+        }
+      } else {
+        ROS_ERROR("[sbpl_lattice_planner] ERROR: Goal point is outside costmap bounds");
+      }
       ROS_ERROR("[sbpl_lattice_planner] ERROR: failed to set goal state\n");
       return false;
+    } else {
+      ROS_INFO_THROTTLE(5.0, "[sbpl_lattice_planner] Goal state set successfully (state_id=%d)", ret);
     }
   }
   catch(SBPL_Exception *e){
@@ -405,7 +438,91 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
     if(ret)
       ROS_DEBUG("Solution is found\n");
     else{
-      ROS_INFO("[sbpl_lattice_planner] Solution not found\n");
+      // 详细分析规划失败的原因
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Solution not found - analyzing failure reason");
+      
+      // 检查起始点和目标点的成本
+      unsigned int start_mx, start_my, goal_mx, goal_my;
+      bool start_in_map = costmap_ros_->getCostmap()->worldToMap(start.pose.position.x, start.pose.position.y, start_mx, start_my);
+      bool goal_in_map = costmap_ros_->getCostmap()->worldToMap(goal.pose.position.x, goal.pose.position.y, goal_mx, goal_my);
+      
+      if(start_in_map) {
+        unsigned char start_cost = costmap_ros_->getCostmap()->getCost(start_mx, start_my);
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Start point cost: %d (lethal=%d, inscribed=%d)", 
+                 start_cost, costmap_2d::LETHAL_OBSTACLE, costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
+      } else {
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Start point is outside costmap bounds");
+      }
+      
+      if(goal_in_map) {
+        unsigned char goal_cost = costmap_ros_->getCostmap()->getCost(goal_mx, goal_my);
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Goal point cost: %d (lethal=%d, inscribed=%d)", 
+                 goal_cost, costmap_2d::LETHAL_OBSTACLE, costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
+      } else {
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Goal point is outside costmap bounds");
+      }
+      
+      // 检查路径上是否有障碍物
+      double dx = goal.pose.position.x - start.pose.position.x;
+      double dy = goal.pose.position.y - start.pose.position.y;
+      double distance = sqrt(dx*dx + dy*dy);
+      int num_checks = std::max(10, (int)(distance * 10)); // 每0.1米检查一次
+      
+      int obstacle_count = 0;
+      int start_obstacles = 0;  // 靠近起点的障碍物
+      int middle_obstacles = 0; // 路径中段的障碍物
+      int goal_obstacles = 0;   // 靠近终点的障碍物
+      
+      for(int i = 0; i <= num_checks; i++) {
+        double ratio = (double)i / num_checks;
+        double x = start.pose.position.x + ratio * dx;
+        double y = start.pose.position.y + ratio * dy;
+        
+        unsigned int mx, my;
+        if(costmap_ros_->getCostmap()->worldToMap(x, y, mx, my)) {
+          unsigned char cost = costmap_ros_->getCostmap()->getCost(mx, my);
+          if(cost == costmap_2d::LETHAL_OBSTACLE || cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+            obstacle_count++;
+            
+            // 根据ratio判断障碍物位置
+            if(ratio < 0.3) {
+              start_obstacles++;  // 前30%认为是靠近起点
+            } else if(ratio > 0.7) {
+              goal_obstacles++;   // 后30%认为是靠近终点
+            } else {
+              middle_obstacles++; // 中间40%认为是路径中段
+            }
+          }
+        }
+      }
+      
+      // 输出详细分析
+      ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Path analysis: %d/%d points have obstacles", obstacle_count, num_checks + 1);
+      ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Obstacle distribution - Start: %d, Middle: %d, Goal: %d", 
+               start_obstacles, middle_obstacles, goal_obstacles);
+      
+      // 使用数组和排序的简洁方法
+      struct ObstacleInfo {
+        int count;
+        const char* name;
+      };
+      
+      ObstacleInfo obstacles[] = {
+        {start_obstacles, "START"},
+        {middle_obstacles, "MIDDLE"}, 
+        {goal_obstacles, "GOAL"}
+      };
+      
+      // 按障碍物数量降序排序
+      std::sort(obstacles, obstacles + 3, [](const ObstacleInfo& a, const ObstacleInfo& b) {
+        return a.count > b.count;
+      });
+      
+      ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Obstacle ranking: %s(%d) > %s(%d) > %s(%d)", 
+               obstacles[0].name, obstacles[0].count,
+               obstacles[1].name, obstacles[1].count,
+               obstacles[2].name, obstacles[2].count);
+      ROS_INFO_THROTTLE(5.0, "[sbpl_lattice_planner] Solution not found\n");
       publishStats(solution_cost, 0, start, goal);
       return false;
     }

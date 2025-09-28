@@ -250,6 +250,11 @@ protected:
    */
   void updateObstacleContainerWithCustomObstacles();
 
+  /**
+   * @brief Print detailed obstacle information for debugging
+   * @remarks This method prints information about all obstacles in the current local map
+   */
+  void printObstacleInfo();
 
   /**
    * @brief Update internal via-point container based on the current reference plan

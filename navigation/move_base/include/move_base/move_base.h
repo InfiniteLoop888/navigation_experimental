@@ -39,11 +39,6 @@
 
 #include <vector>
 #include <string>
-#include <fstream>
-#include <cstdio>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <ctime>
 
 #include <ros/ros.h>
 
@@ -241,82 +236,6 @@ namespace move_base {
       // Track last printed state to avoid duplicate logging
       MoveBaseState last_logged_state_;
       
-      // Custom logging functionality
-      std::ofstream custom_log_file_;
-      std::string custom_log_path_;
-      bool enable_custom_logging_;
-      
-      // Simplified log management parameters
-      double log_retention_days_;        // How many days to keep old logs (default 7)
-      ros::Timer log_cleanup_timer_;    // Timer for daily log rotation and cleanup
-      std::string current_log_date_;     // Current log file date (YYYY-MM-DD)
-      
-      // Custom logging function
-      void writeCustomLog(const std::string& level, const std::string& message);
-      
-      // Simplified log management functions
-      void checkDailyLogRotation();
-      void rotateToNewDay();
-      void cleanupOldLogs();
-      void logCleanupCallback(const ros::TimerEvent&);
-      std::string getDailyLogFileName(const std::string& base_path, const std::string& date);
-      std::string getCurrentDateString();
-      
-      // Custom logging macros that automatically save to custom log file
-      #define MOVE_BASE_INFO(msg, ...) \
-        do { \
-          ROS_INFO("[move_base] " msg, ##__VA_ARGS__); \
-          if(enable_custom_logging_ && custom_log_file_.is_open()) { \
-            char buffer[1024]; \
-            snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
-            custom_log_file_ << "[" << ros::Time::now() << "] [INFO] " << buffer << std::endl; \
-            custom_log_file_.flush(); \
-          } \
-        } while(0)
-      
-      #define MOVE_BASE_WARN(msg, ...) \
-        do { \
-          ROS_WARN("[move_base] " msg, ##__VA_ARGS__); \
-          if(enable_custom_logging_ && custom_log_file_.is_open()) { \
-            char buffer[1024]; \
-            snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
-            custom_log_file_ << "[" << ros::Time::now() << "] [WARN] " << buffer << std::endl; \
-            custom_log_file_.flush(); \
-          } \
-        } while(0)
-      
-      #define MOVE_BASE_ERROR(msg, ...) \
-        do { \
-          ROS_ERROR("[move_base] " msg, ##__VA_ARGS__); \
-          if(enable_custom_logging_ && custom_log_file_.is_open()) { \
-            char buffer[1024]; \
-            snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
-            custom_log_file_ << "[" << ros::Time::now() << "] [ERROR] " << buffer << std::endl; \
-            custom_log_file_.flush(); \
-          } \
-        } while(0)
-      
-      #define MOVE_BASE_ERROR_THROTTLE(rate, msg, ...) \
-        do { \
-          ROS_ERROR_THROTTLE(rate, "[move_base] " msg, ##__VA_ARGS__); \
-          if(enable_custom_logging_ && custom_log_file_.is_open()) { \
-            char buffer[1024]; \
-            snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
-            custom_log_file_ << "[" << ros::Time::now() << "] [ERROR] " << buffer << std::endl; \
-            custom_log_file_.flush(); \
-          } \
-        } while(0)
-      
-      #define MOVE_BASE_WARN_THROTTLE(rate, msg, ...) \
-        do { \
-          ROS_WARN_THROTTLE(rate, "[move_base] " msg, ##__VA_ARGS__); \
-          if(enable_custom_logging_ && custom_log_file_.is_open()) { \
-            char buffer[1024]; \
-            snprintf(buffer, sizeof(buffer), msg, ##__VA_ARGS__); \
-            custom_log_file_ << "[" << ros::Time::now() << "] [WARN] " << buffer << std::endl; \
-            custom_log_file_.flush(); \
-          } \
-        } while(0)
   };
 };
 #endif
