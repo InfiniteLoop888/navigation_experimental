@@ -663,8 +663,6 @@ namespace move_base {
     }
 
     geometry_msgs::PoseStamped goal = goalToGlobalFrame(move_base_goal->target_pose);
-    ROS_INFO("[move_base] Goal transformed to global frame: (%.2f, %.2f, %.2f)", 
-                   goal.pose.position.x, goal.pose.position.y, goal.pose.position.z);
 
     publishZeroVelocity();
     //we have a goal so start the planner

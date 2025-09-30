@@ -1118,7 +1118,7 @@ RobotFootprintModelPtr TebLocalPlannerROS::getRobotFootprintFromParamServer(cons
   if (model_name.compare("two_circles") == 0)
   {
     // check parameters
-    if (!nh.hasParam("[TebLocalPlanner] footprint_model/front_offset") || !nh.hasParam("footprint_model/front_radius") 
+    if (!nh.hasParam("footprint_model/front_offset") || !nh.hasParam("footprint_model/front_radius") 
         || !nh.hasParam("footprint_model/rear_offset") || !nh.hasParam("footprint_model/rear_radius"))
     {
       ROS_ERROR_STREAM("[TebLocalPlanner] Footprint model 'two_circles' cannot be loaded for trajectory optimization, since params '" << nh.getNamespace()
@@ -1232,9 +1232,7 @@ double TebLocalPlannerROS::getNumberFromXMLRPC(XmlRpc::XmlRpcValue& value, const
 
 void TebLocalPlannerROS::printObstacleInfo()
 {
-  ROS_INFO_STREAM_THROTTLE(2.0, "[TebLocalPlanner] === Obstacle Information ===");
-  ROS_INFO_STREAM_THROTTLE(2.0, "[TebLocalPlanner] Total obstacles: " << obstacles_.size());
-  
+
   if (obstacles_.empty())
   {
     ROS_INFO_STREAM_THROTTLE(2.0, "[TebLocalPlanner] No obstacles detected in local costmap");
@@ -1258,11 +1256,13 @@ void TebLocalPlannerROS::printObstacleInfo()
     else if (boost::dynamic_pointer_cast<PolygonObstacle>(obstacles_[i]))
       polygon_obstacles++;
   }
-  
-  ROS_INFO_STREAM_THROTTLE(2.0, "[TebLocalPlanner] Obstacle types - Points: " << point_obstacles 
+  ROS_INFO_STREAM_THROTTLE(1.0, std::endl 
+                          << "[TebLocalPlanner] === Obstacle Information ===" << std::endl 
+                          << "[TebLocalPlanner] Total obstacles: " << obstacles_.size() << std::endl 
+                          << "[TebLocalPlanner] Obstacle types - Points: " << point_obstacles 
                           << ", Circles: " << circular_obstacles 
                           << ", Lines: " << line_obstacles 
-                          << ", Polygons: " << polygon_obstacles);
+                          << ", Polygons: " << polygon_obstacles << std::endl);
   
   // Print detailed information for first few obstacles
   int max_details = std::min(5, (int)obstacles_.size());
@@ -1279,14 +1279,14 @@ void TebLocalPlannerROS::printObstacleInfo()
     else if (boost::dynamic_pointer_cast<PolygonObstacle>(obstacles_[i]))
       type_name = "Polygon";
     
-    ROS_INFO_STREAM_THROTTLE(2.0, "[TebLocalPlanner] Obstacle " << i << ": type=" 
+    ROS_INFO_STREAM_THROTTLE(1.0, "[TebLocalPlanner] Obstacle " << i << ": type=" 
                             << type_name 
                             << ", centroid=(" << centroid.x() << ", " << centroid.y() << ")");
   }
   
   if (obstacles_.size() > 5)
   {
-    ROS_INFO_STREAM_THROTTLE(2.0, "[TebLocalPlanner] ... and " << (obstacles_.size() - 5) << " more obstacles");
+    ROS_INFO_STREAM_THROTTLE(1.0, "[TebLocalPlanner] ... and " << (obstacles_.size() - 5) << " more obstacles");
   }
   
   // Print costmap statistics
@@ -1310,7 +1310,7 @@ void TebLocalPlannerROS::printObstacleInfo()
       }
     }
     
-    ROS_INFO_STREAM_THROTTLE(2.0, "[TebLocalPlanner] Costmap stats - Lethal: " << lethal_count 
+    ROS_INFO_STREAM_THROTTLE(1.0, "[TebLocalPlanner] Costmap stats - Lethal: " << lethal_count 
                             << ", Inscribed: " << inscribed_count 
                             << ", Free: " << free_count
                             << ", Resolution: " << costmap_->getResolution());
