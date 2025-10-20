@@ -651,6 +651,20 @@ namespace move_base {
 
   void MoveBase::executeCb(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal)
   {
+    // 检查目标指针是否存在
+    if (!move_base_goal) {
+      ROS_ERROR("[move_base] Received null goal pointer, aborting navigation");
+      return;
+    }
+    
+    // 检查target_pose位置数据是否有效（检查是否为NaN或无穷大）
+    if (!std::isfinite(move_base_goal->target_pose.pose.position.x) || 
+        !std::isfinite(move_base_goal->target_pose.pose.position.y) || 
+        !std::isfinite(move_base_goal->target_pose.pose.position.z)) {
+      ROS_ERROR("[move_base] Invalid target pose position data (NaN or infinite), aborting navigation");
+      return;
+    }
+    
     ROS_INFO("[move_base] Received new navigation goal: (%.2f, %.2f, %.2f)", 
                    move_base_goal->target_pose.pose.position.x,
                    move_base_goal->target_pose.pose.position.y,

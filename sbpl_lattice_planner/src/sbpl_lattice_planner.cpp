@@ -439,7 +439,7 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
       ROS_DEBUG("Solution is found\n");
     else{
       // 详细分析规划失败的原因
-        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Solution not found - analyzing failure reason");
+      ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Solution not found - analyzing failure reason");
       
       // 检查起始点和目标点的成本
       unsigned int start_mx, start_my, goal_mx, goal_my;
@@ -522,6 +522,42 @@ bool SBPLLatticePlanner::makePlan(const geometry_msgs::PoseStamped& start,
                obstacles[0].name, obstacles[0].count,
                obstacles[1].name, obstacles[1].count,
                obstacles[2].name, obstacles[2].count);
+               
+      // 分析失败原因
+      std::string failure_reason = "UNKNOWN";
+      if(!start_in_map || !goal_in_map) {
+        failure_reason = "POINTS_OUT_OF_BOUNDS";
+      } else if(start_in_map && goal_in_map) {
+        unsigned char start_cost = costmap_ros_->getCostmap()->getCost(start_mx, start_my);
+        unsigned char goal_cost = costmap_ros_->getCostmap()->getCost(goal_mx, goal_my);
+        if(start_cost == costmap_2d::LETHAL_OBSTACLE) {
+          failure_reason = "START_IN_OBSTACLE";
+        } else if(goal_cost == costmap_2d::LETHAL_OBSTACLE) {
+          failure_reason = "GOAL_IN_OBSTACLE";
+        } else if(obstacle_count > num_checks * 0.8) {
+          failure_reason = "PATH_BLOCKED";
+        } else if(obstacles[0].count > obstacles[1].count + obstacles[2].count) {
+          failure_reason = "OBSTACLE_CLUSTERED";
+        } else {
+          failure_reason = "COMPLEX_OBSTACLES";
+        }
+      }
+      
+      ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Failure reason: %s", failure_reason.c_str());
+      
+      // 提供解决建议
+      if(failure_reason == "START_IN_OBSTACLE") {
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Suggestion: Move robot away from obstacles");
+      } else if(failure_reason == "GOAL_IN_OBSTACLE") {
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Suggestion: Choose a different goal location");
+      } else if(failure_reason == "PATH_BLOCKED") {
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Suggestion: Clear obstacles or choose different path");
+      } else if(failure_reason == "OBSTACLE_CLUSTERED") {
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Suggestion: Try different approach angle or clear clustered obstacles");
+      } else if(failure_reason == "COMPLEX_OBSTACLES") {
+        ROS_WARN_THROTTLE(5.0, "[sbpl_lattice_planner] Suggestion: Increase epsilon or try different planner parameters");
+      }
+      
       ROS_INFO_THROTTLE(5.0, "[sbpl_lattice_planner] Solution not found\n");
       publishStats(solution_cost, 0, start, goal);
       return false;

@@ -43,7 +43,6 @@ namespace teb_local_planner
     
 void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
 {
-  ROS_INFO("[TebLocalPlanner] Loading TEB configuration parameters...");
     
   nh.param("odom_topic", odom_topic, odom_topic);
   nh.param("map_frame", map_frame, map_frame);
@@ -181,11 +180,6 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
 
   checkParameters();
   checkDeprecated(nh);
-  
-  // Log configuration summary
-  ROS_INFO("[TebLocalPlanner] TEB config loaded: max_vel=%.2f, dt_ref=%.3f, hcp_enabled=%s", 
-           robot.max_vel_x, trajectory.dt_ref, 
-           hcp.enable_homotopy_class_planning ? "true" : "false");
 }
 
 void TebConfig::reconfigure(TebLocalPlannerReconfigureConfig& cfg)

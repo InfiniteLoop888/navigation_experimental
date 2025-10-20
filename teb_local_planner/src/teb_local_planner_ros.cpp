@@ -123,11 +123,6 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
       ROS_INFO("[TebLocalPlanner] Parallel planning in distinctive topologies disabled.");
     }
     
-    // Log initialization summary
-    ROS_INFO("[TebLocalPlanner] TEB Local Planner initialized: hcp_enabled=%s, costmap_converter=%s, max_vel=%.2f", 
-             cfg_.hcp.enable_homotopy_class_planning ? "true" : "false",
-             cfg_.obstacles.costmap_converter_plugin.c_str(),
-             cfg_.robot.max_vel_x);
     
     // init other variables
     tf_ = tf;
@@ -1247,6 +1242,12 @@ void TebLocalPlannerROS::printObstacleInfo()
   
   for (size_t i = 0; i < obstacles_.size(); ++i)
   {
+    // 检查obstacles_[i]指针是否存在
+    if (!obstacles_[i]) {
+      ROS_WARN("[TebLocalPlanner] Obstacle at index %zu is null, skipping", i);
+      continue;
+    }
+    
     if (boost::dynamic_pointer_cast<PointObstacle>(obstacles_[i]))
       point_obstacles++;
     else if (boost::dynamic_pointer_cast<CircularObstacle>(obstacles_[i]))
@@ -1268,7 +1269,23 @@ void TebLocalPlannerROS::printObstacleInfo()
   int max_details = std::min(5, (int)obstacles_.size());
   for (int i = 0; i < max_details; ++i)
   {
-    Eigen::Vector2d centroid = obstacles_[i]->getCentroid();
+    // 检查obstacles_[i]指针是否存在
+    if (!obstacles_[i]) {
+      ROS_WARN("[TebLocalPlanner] Obstacle at index %d is null, skipping", i);
+      continue;
+    }
+    
+    // 检查getCentroid()方法是否存在并安全调用
+    Eigen::Vector2d centroid;
+    try {
+      centroid = obstacles_[i]->getCentroid();
+    } catch (const std::exception& e) {
+      ROS_WARN("[TebLocalPlanner] Failed to get centroid for obstacle at index %d: %s, skipping", i, e.what());
+      continue;
+    } catch (...) {
+      ROS_WARN("[TebLocalPlanner] Unknown error getting centroid for obstacle at index %d, skipping", i);
+      continue;
+    }
     std::string type_name = "Unknown";
     if (boost::dynamic_pointer_cast<PointObstacle>(obstacles_[i]))
       type_name = "Point";
