@@ -1,0 +1,148 @@
+[801.629][/move_base] [move_base] Received new navigation goal: (-0.30, -1.45, 0.00)
+[801.629][/move_base] [move_base] Starting path planner...
+[801.629][/move_base] [sbpl_lattice_planner] getting start point (0.0127668,-0.00185631) goal point (-0.295158,-1.45476)
+[801.629][/move_base] [sbpl_lattice_planner] Start state set successfully (state_id=1)
+[801.629][/move_base] [sbpl_lattice_planner] Goal state set successfully (state_id=2)
+[802.091][/move_base] [move_base] Got new global path plan, updating controller...
+[802.091][/move_base] [move_base] State: change to controlling motion...
+[802.091][/move_base] [TebLocalPlanner] Planning cycle: global_plan=135, obstacles=0, via_points=0
+[802.091][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 1
+[TebLocalPlanner] Obstacle types - Points: 0, Circles: 0, Lines: 0, Polygons: 1
+
+[802.091][/move_base] [TebLocalPlanner] Obstacle 0: type=Polygon, centroid=(-0.9, 0.425)
+[802.091][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 4, Inscribed: 104, Free: 3232, Resolution: 0.05
+[802.782][/move_base] Extrapolation Error: Lookup would require extrapolation 0.048000000s into the future.  Requested time 802.771000000 but the latest data is at time 802.723000000, when looking up transform from frame [odom] to frame [map]
+
+[802.782][/move_base] [TebLocalPlanner] Global Frame: odom Plan Frame size 135: map
+
+[802.782][/move_base] [TebLocalPlanner] Could not transform the global plan to the frame of the controller
+[802.831][/move_base] [move_base] State: change to planning path...
+[803.409][/move_base] [move_base] Got new global path plan, updating controller...
+[803.409][/move_base] [move_base] State: change to controlling motion...
+[803.409][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 1
+[TebLocalPlanner] Obstacle types - Points: 0, Circles: 0, Lines: 0, Polygons: 1
+
+[803.409][/move_base] [TebLocalPlanner] Obstacle 0: type=Polygon, centroid=(-0.941667, 0.458333)
+[803.409][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 12, Inscribed: 158, Free: 3116, Resolution: 0.05
+[804.183][/move_base] [TebLocalPlanner] Planning cycle: global_plan=135, obstacles=1, via_points=3
+[804.484][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 1
+[TebLocalPlanner] Obstacle types - Points: 0, Circles: 0, Lines: 0, Polygons: 1
+
+[804.484][/move_base] [TebLocalPlanner] Obstacle 0: type=Polygon, centroid=(-0.958333, 0.441667)
+[804.484][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 4, Inscribed: 106, Free: 3228, Resolution: 0.05
+[804.583][/move_base] Extrapolation Error: Lookup would require extrapolation 0.033000000s into the future.  Requested time 804.556000000 but the latest data is at time 804.523000000, when looking up transform from frame [odom] to frame [map]
+
+[804.583][/move_base] [TebLocalPlanner] Global Frame: odom Plan Frame size 135: map
+
+[804.583][/move_base] [TebLocalPlanner] Could not transform the global plan to the frame of the controller
+[804.683][/move_base] [move_base] State: change to planning path...
+[804.835][/move_base] [move_base] Got new global path plan, updating controller...
+[804.836][/move_base] [move_base] State: change to controlling motion...
+[804.836][/move_base] Extrapolation Error: Lookup would require extrapolation 0.049000000s into the future.  Requested time 805.372000000 but the latest data is at time 805.323000000, when looking up transform from frame [odom] to frame [map]
+
+[804.836][/move_base] [TebLocalPlanner] Global Frame: odom Plan Frame size 81: map
+
+[804.836][/move_base] [TebLocalPlanner] Could not transform the global plan to the frame of the controller
+[804.836][/move_base] [move_base] State: change to planning path...
+[805.773][/move_base] [move_base] Got new global path plan, updating controller...
+[805.776][/move_base] [move_base] State: change to controlling motion...
+[805.776][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 1
+[TebLocalPlanner] Obstacle types - Points: 0, Circles: 0, Lines: 0, Polygons: 1
+
+[805.776][/move_base] [TebLocalPlanner] Obstacle 0: type=Polygon, centroid=(-0.958333, 0.441667)
+[805.776][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 3, Inscribed: 100, Free: 3287, Resolution: 0.05
+[805.885][/move_base] [move_base] State: change to planning path...
+[806.383][/move_base] [move_base] Got new global path plan, updating controller...
+[806.383][/move_base] [move_base] State: change to controlling motion...
+[806.383][/move_base] [TebLocalPlanner] Planning cycle: global_plan=135, obstacles=1, via_points=2
+[806.783][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 2
+[TebLocalPlanner] Obstacle types - Points: 2, Circles: 0, Lines: 0, Polygons: 0
+
+[806.783][/move_base] [TebLocalPlanner] Obstacle 0: type=Point, centroid=(-1.025, 0.425)
+[806.783][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 2, Inscribed: 60, Free: 3400, Resolution: 0.05
+[808.175][/move_base] Extrapolation Error: Lookup would require extrapolation 0.041000000s into the future.  Requested time 807.565000000 but the latest data is at time 807.524000000, when looking up transform from frame [odom] to frame [map]
+
+[808.181][/move_base] [TebLocalPlanner] Global Frame: odom Plan Frame size 135: map
+
+[808.181][/move_base] [TebLocalPlanner] Could not transform the global plan to the frame of the controller
+[808.181][/move_base] [sbpl_lattice_planner] getting start point (-0.211047,-0.660147) goal point (0.0550842,0.536024)
+[808.181][/move_base] [sbpl_lattice_planner] Start state set successfully (state_id=12666)
+[808.181][/move_base] [sbpl_lattice_planner] Goal state set successfully (state_id=476)
+[808.181][/move_base] [move_base] State: change to planning path...
+[808.181][/move_base] [move_base] Got new global path plan, updating controller...
+[808.181][/move_base] [move_base] State: change to controlling motion...
+[808.181][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 2
+[TebLocalPlanner] Obstacle types - Points: 2, Circles: 0, Lines: 0, Polygons: 0
+
+[808.181][/move_base] [TebLocalPlanner] Obstacle 0: type=Point, centroid=(-1.025, 0.425)
+[808.181][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 2, Inscribed: 90, Free: 3288, Resolution: 0.05
+[808.375][/move_base] [TebLocalPlanner] Planning cycle: global_plan=99, obstacles=2, via_points=3
+[809.083][/move_base] Extrapolation Error: Lookup would require extrapolation 0.021000000s into the future.  Requested time 809.044000000 but the latest data is at time 809.023000000, when looking up transform from frame [odom] to frame [map]
+
+[809.084][/move_base] [TebLocalPlanner] Global Frame: odom Plan Frame size 99: map
+
+[809.084][/move_base] [TebLocalPlanner] Could not transform the global plan to the frame of the controller
+[809.184][/move_base] [move_base] State: change to planning path...
+[809.583][/move_base] [move_base] Got new global path plan, updating controller...
+[809.584][/move_base] [move_base] State: change to controlling motion...
+[809.584][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 1
+[TebLocalPlanner] Obstacle types - Points: 0, Circles: 0, Lines: 0, Polygons: 1
+
+[809.584][/move_base] [TebLocalPlanner] Obstacle 0: type=Polygon, centroid=(-0.958333, 0.391667)
+[809.584][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 3, Inscribed: 118, Free: 3206, Resolution: 0.05
+[809.984][/move_base] Extrapolation Error: Lookup would require extrapolation 0.037000000s into the future.  Requested time 809.961000000 but the latest data is at time 809.924000000, when looking up transform from frame [odom] to frame [map]
+
+[809.984][/move_base] [TebLocalPlanner] Global Frame: odom Plan Frame size 45: map
+
+[809.984][/move_base] [TebLocalPlanner] Could not transform the global plan to the frame of the controller
+[810.084][/move_base] [move_base] State: change to planning path...
+[810.440][/move_base] [move_base] Got new global path plan, updating controller...
+[811.667][/move_base] [move_base] State: change to controlling motion...
+[811.667][/move_base] [TebLocalPlanner] Planning cycle: global_plan=72, obstacles=2, via_points=2
+[811.667][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 1
+[TebLocalPlanner] Obstacle types - Points: 0, Circles: 0, Lines: 0, Polygons: 1
+
+[811.667][/move_base] [TebLocalPlanner] Obstacle 0: type=Polygon, centroid=(-0.925, 0.425)
+[811.667][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 10, Inscribed: 137, Free: 3161, Resolution: 0.05
+[811.667][/move_base] Extrapolation Error: Lookup would require extrapolation 0.058000000s into the future.  Requested time 810.983000000 but the latest data is at time 810.925000000, when looking up transform from frame [odom] to frame [map]
+
+[811.667][/move_base] [TebLocalPlanner] Global Frame: odom Plan Frame size 72: map
+
+[811.667][/move_base] [TebLocalPlanner] Could not transform the global plan to the frame of the controller
+[811.667][/move_base] [move_base] State: change to planning path...
+[811.667][/move_base] [move_base] Got new global path plan, updating controller...
+[811.667][/move_base] [move_base] State: change to controlling motion...
+[811.667][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 1
+[TebLocalPlanner] Obstacle types - Points: 0, Circles: 0, Lines: 0, Polygons: 1
+
+[811.667][/move_base] [TebLocalPlanner] Obstacle 0: type=Polygon, centroid=(-0.925, 0.491667)
+[811.667][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 18, Inscribed: 177, Free: 3074, Resolution: 0.05
+[812.166][/move_base] [move_base] State: change to planning path...
+[812.783][/move_base] [move_base] Got new global path plan, updating controller...
+[812.783][/move_base] [move_base] State: change to controlling motion...
+[812.783][/move_base] [TebLocalPlanner] Planning cycle: global_plan=90, obstacles=1, via_points=0
+[812.783][/move_base] 
+[TebLocalPlanner] === Obstacle Information ===
+[TebLocalPlanner] Total obstacles: 1
+[TebLocalPlanner] Obstacle types - Points: 0, Circles: 0, Lines: 0, Polygons: 1
+
+[812.783][/move_base] [TebLocalPlanner] Obstacle 0: type=Polygon, centroid=(-0.941667, 0.525)
+[812.783][/move_base] [TebLocalPlanner] Costmap stats - Lethal: 21, Inscribed: 265, Free: 2748, Resolution: 0.05

@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- 使用rosbag播放bag文件 -->
+    
+    <!-- 必需参数：bag文件路径 -->
+    <arg name="bag_file" doc="要回放的rosbag文件路径"/>
+    
+    <!-- 基本播放参数 -->
+    <arg name="rate" default="1.0" doc="播放速度倍数 (1.0=正常速度, 2.0=2倍速)"/>
+    <arg name="loop" default="false" doc="是否循环播放"/>
+    <arg name="topics" default="" doc="指定要播放的话题，用逗号分隔"/>
+    <arg name="start_time" default="0" doc="开始播放的时间点（秒）"/>
+    <arg name="duration" default="0" doc="播放持续时间（秒），0表示播放到结束"/>
+    
+    <!-- 高级播放参数 -->
+    <arg name="prefix" default="" doc="话题前缀"/>
+    <arg name="quiet" default="false" doc="安静模式，抑制控制台输出"/>
+    <arg name="immediate" default="false" doc="立即播放所有消息，不等待"/>
+    <arg name="pause" default="false" doc="以暂停模式开始"/>
+    <arg name="queue_size" default="100" doc="输出队列大小"/>
+    <arg name="clock_hz" default="100" doc="时钟发布频率（Hz）"/>
+    <arg name="delay" default="0" doc="每次发布后的延迟（秒）"/>
+    <arg name="skip_empty" default="0" doc="跳过空区域的时间阈值（秒）"/>
+    <arg name="keep_alive" default="false" doc="在bag结束后保持活跃"/>
+    <arg name="wait_for_subscribers" default="false" doc="等待订阅者连接"/>
+    
+    <!-- 设置使用模拟时间 -->
+    <param name="/use_sim_time" value="true"/>
+    
+    <!-- 启动rosbag play -->
+    <node name="rosbag_play" pkg="replay_node" type="rosbag_play.sh" output="screen">
+        <!-- 基本参数 -->
+        <param name="bag_file" value="$(arg bag_file)"/>
+        <param name="rate" value="$(arg rate)"/>
+        <param name="loop" value="$(arg loop)"/>
+        <param name="topics" value="$(arg topics)"/>
+        <param name="start_time" value="$(arg start_time)"/>
+        <param name="duration" value="$(arg duration)"/>
+        
+        <!-- 高级参数 -->
+        <param name="prefix" value="$(arg prefix)"/>
+        <param name="quiet" value="$(arg quiet)"/>
+        <param name="immediate" value="$(arg immediate)"/>
+        <param name="pause" value="$(arg pause)"/>
+        <param name="queue_size" value="$(arg queue_size)"/>
+        <param name="clock_hz" value="$(arg clock_hz)"/>
+        <param name="delay" value="$(arg delay)"/>
+        <param name="skip_empty" value="$(arg skip_empty)"/>
+        <param name="keep_alive" value="$(arg keep_alive)"/>
+        <param name="wait_for_subscribers" value="$(arg wait_for_subscribers)"/>
+    </node>
+    
+    <!-- 启动rosout过滤器 -->
+    <arg name="filter_publishers" default="/move_base" doc="要过滤的publisher名称，用逗号分隔"/>
+    <arg name="format_type" default="log" doc="输出格式：log（简洁日志格式）或json（JSON格式）"/>
+    <node name="rosout_filter" pkg="replay_node" type="rosout_filter_node.py" output="screen">
+        <param name="bag_file" value="$(arg bag_file)"/>
+        <param name="filter_publishers" value="$(arg filter_publishers)"/>
+        <param name="format_type" value="$(arg format_type)"/>
+    </node>
+    
+    <!-- 启动rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find wpr_simulation)/rviz/nav.rviz" output="log"/>
+    
+</launch>
+

@@ -1,0 +1,90 @@
+# ROS话题列表文件
+# 每行一个话题名称，以#开头的行会被忽略
+
+# 基础话题
+/odom
+/cmd_vel
+/tf
+/tf_static
+/clock
+/clicked_point
+
+# 传感器话题
+/scan
+/scan_filtered
+/imu/data
+
+# 定位话题 (AMCL)
+/amcl_pose
+/particlecloud
+/amcl/parameter_descriptions
+/amcl/parameter_updates
+
+# 地图话题
+/map
+/map_metadata
+/map_updates
+
+# 导航话题 - move_base核心
+/move_base/goal
+/move_base/cancel
+/move_base/status
+/move_base/result
+/move_base/feedback
+/move_base/current_goal
+/move_base/recovery_status
+/move_base/parameter_descriptions
+/move_base/parameter_updates
+/move_base_simple/goal
+
+# 导航话题 - SBPL全局规划器
+/move_base/SBPLLatticePlanner/plan
+/move_base/SBPLLatticePlanner/footprint_markers
+/move_base/SBPLLatticePlanner/sbpl_lattice_planner_stats
+
+# 导航话题 - TEB局部规划器
+/move_base/TebLocalPlannerROS/global_plan
+/move_base/TebLocalPlannerROS/local_plan
+/move_base/TebLocalPlannerROS/obstacles
+/move_base/TebLocalPlannerROS/teb_feedback
+/move_base/TebLocalPlannerROS/teb_markers
+/move_base/TebLocalPlannerROS/teb_poses
+/move_base/TebLocalPlannerROS/via_points
+/move_base/TebLocalPlannerROS/parameter_descriptions
+/move_base/TebLocalPlannerROS/parameter_updates
+/move_base/TebLocalPlannerROS/costmap_converter/CostmapToPolygonsDBSMCCH/parameter_descriptions
+/move_base/TebLocalPlannerROS/costmap_converter/CostmapToPolygonsDBSMCCH/parameter_updates
+
+# 导航话题 - 全局代价地图
+/move_base/global_costmap/costmap
+/move_base/global_costmap/costmap_updates
+/move_base/global_costmap/footprint
+/move_base/global_costmap/parameter_descriptions
+/move_base/global_costmap/parameter_updates
+/move_base/global_costmap/static_layer/parameter_descriptions
+/move_base/global_costmap/static_layer/parameter_updates
+/move_base/global_costmap/inflation_layer/parameter_descriptions
+/move_base/global_costmap/inflation_layer/parameter_updates
+/move_base/global_costmap/obstacle_layer/parameter_descriptions
+/move_base/global_costmap/obstacle_layer/parameter_updates
+
+# 导航话题 - 局部代价地图
+/move_base/local_costmap/costmap
+/move_base/local_costmap/costmap_updates
+/move_base/local_costmap/footprint
+/move_base/local_costmap/parameter_descriptions
+/move_base/local_costmap/parameter_updates
+/move_base/local_costmap/inflation_layer/parameter_descriptions
+/move_base/local_costmap/inflation_layer/parameter_updates
+/move_base/local_costmap/obstacle_layer/parameter_descriptions
+/move_base/local_costmap/obstacle_layer/parameter_updates
+
+# 可视化话题
+/visualization_marker
+/visualization_marker_array
+/waypoints_marker
+/waypoints_marker_array
+
+# 系统日志话题
+/rosout
+/rosout_agg
