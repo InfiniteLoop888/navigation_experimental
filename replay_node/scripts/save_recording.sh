@@ -1,0 +1,1 @@
+rosservice call /ros_recording_node/save_buffer

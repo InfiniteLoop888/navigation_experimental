@@ -66,7 +66,11 @@ class RosRecordingNode:
 
         # 消息缓冲区：存储(topic, msg, timestamp)
         self.message_buffer = deque()
+        self.single_message_buffer = deque()  # 存储只有一个消息的话题
         self.buffer_lock = threading.Lock()
+
+        # 录制开始时间（使用第一个话题的时间）
+        self.recording_start_time = None
 
         # 订阅者字典
         self.subscribers = {}
@@ -185,8 +189,8 @@ class RosRecordingNode:
     def subscribe_to_topic(self, topic_name, topic_type):
         """订阅指定话题"""
         try:
-            # 获取消息类型
-            msg_class = rospy.get_message_class(topic_type)
+            # 使用rostopic.get_topic_class替代rospy.get_message_class
+            msg_class, _, _ = rostopic.get_topic_class(topic_name, blocking=False)
             if msg_class is not None:
                 # 创建订阅者
                 self.subscribers[topic_name] = rospy.Subscriber(
@@ -211,6 +215,10 @@ class RosRecordingNode:
             # 添加消息到缓冲区
             self.message_buffer.append((topic, msg, current_time))
 
+            # 如果是第一个话题，设置录制开始时间（只设置一次）
+            if self.recording_start_time is None:
+                self.recording_start_time = current_time
+
             # 限制缓冲区大小（防止内存溢出）
             if len(self.message_buffer) > 100000:  # 最多10万条消息
                 self.message_buffer.popleft()
@@ -230,33 +238,67 @@ class RosRecordingNode:
                 with self.buffer_lock:
                     # 统计当前缓冲区中每个话题的消息数量
                     topic_counts.clear()
-                    for _, topic, _ in self.message_buffer:
+                    for topic, _, _ in self.message_buffer:
                         topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
-                    # 从队列前端删除过期消息，但保留只有一条消息的话题
-                    while (
-                        self.message_buffer and self.message_buffer[0][2] < cutoff_time
-                    ):
-                        topic = self.message_buffer[0][0]
-                        # 如果该话题只有一条消息，跳过删除
-                        if topic_counts.get(topic, 0) <= 1:
+                    # 从队列前端删除过期消息，将单消息话题移到专门缓冲区
+                    while self.message_buffer:
+                        topic, msg, timestamp = self.message_buffer[0]
+                        if timestamp >= cutoff_time:
+                            # 未过期的消息，停止删除
                             break
-                        self.message_buffer.popleft()
-                        # 更新计数
-                        if topic in topic_counts:
+                        elif topic_counts.get(topic, 0) <= 1:
+                            # 过期的消息，但如果该话题只有一条消息，移到单消息缓冲区
+                            self.message_buffer.popleft()
+                            self.single_message_buffer.append((topic, msg, timestamp))
+                        else:
+                            # 过期的多消息话题，删除第一条消息
+                            self.message_buffer.popleft()
                             topic_counts[topic] -= 1
 
                 # 发布状态
                 buffer_size = len(self.message_buffer)
-                if buffer_size > 0:
-                    oldest_age = (current_time - self.message_buffer[0][2]).to_sec()
-                    status_msg = "缓冲区: {} 条消息, 最旧: {:.1f}秒".format(
-                        buffer_size, oldest_age
+                single_buffer_size = len(self.single_message_buffer)
+                total_buffer_size = buffer_size + single_buffer_size
+
+                # 计算录制时长（使用第一个话题的时间）
+                recording_duration = (current_time - self.recording_start_time).to_sec()
+
+                if total_buffer_size > 0:
+                    # 计算最旧消息年龄（只考虑多消息话题）
+                    multi_message_topics = []
+                    for topic, _, timestamp in self.message_buffer:
+                        if topic_counts.get(topic, 0) > 1:
+                            multi_message_topics.append(timestamp)
+
+                    if multi_message_topics:
+                        oldest_age = (current_time - min(multi_message_topics)).to_sec()
+                    else:
+                        oldest_age = 0.0  # 没有多消息话题
+
+                    # 统计只有1条消息的话题数量
+                    single_message_topics = sum(
+                        1 for count in topic_counts.values() if count == 1
+                    ) + len(
+                        self.single_message_buffer
+                    )  # 加上单消息缓冲区中的话题
+                    total_topics = len(topic_counts) + len(self.single_message_buffer)
+
+                    status_msg = "录制时长: {:.1f}秒 | 缓冲区: {} 条消息 (多消息: {}, 单消息: {}) | 最旧: {:.1f}秒前 | 话题: {}个 (单条消息: {}个)".format(
+                        recording_duration,
+                        total_buffer_size,
+                        buffer_size,
+                        single_buffer_size,
+                        oldest_age,
+                        total_topics,
+                        single_message_topics,
                     )
                 else:
-                    status_msg = "缓冲区: 空"
+                    status_msg = "录制时长: {:.1f}秒 | 缓冲区: 空".format(
+                        recording_duration
+                    )
 
-                self.status_pub.publish(String(data=status_msg))
+                rospy.loginfo(status_msg)
 
             except Exception as e:
                 rospy.logerr("清理消息时出错: {}".format(str(e)))
@@ -273,48 +315,100 @@ class RosRecordingNode:
             )
 
             with self.buffer_lock:
-                if len(self.message_buffer) == 0:
+                if (
+                    len(self.message_buffer) == 0
+                    and len(self.single_message_buffer) == 0
+                ):
                     return TriggerResponse(
                         success=False, message="缓冲区为空，无法保存"
                     )
+
+                # 统计话题信息
+                topic_counts = {}
+                for topic, _, _ in self.message_buffer:
+                    topic_counts[topic] = topic_counts.get(topic, 0) + 1
+
+                single_message_topics = sum(
+                    1 for count in topic_counts.values() if count == 1
+                ) + len(self.single_message_buffer)
+                total_topics = len(topic_counts) + len(self.single_message_buffer)
+
+                # 计算录制时长（使用第一个话题的时间）
+                recording_duration = (
+                    rospy.Time.now() - self.recording_start_time
+                ).to_sec()
+
+                # 计算最旧消息年龄（只考虑多消息话题）
+                current_time = rospy.Time.now()
+                multi_message_topics = []
+                for topic, _, timestamp in self.message_buffer:
+                    if topic_counts.get(topic, 0) > 1:
+                        multi_message_topics.append(timestamp)
+
+                if multi_message_topics:
+                    oldest_age = (current_time - min(multi_message_topics)).to_sec()
+                else:
+                    oldest_age = 0.0  # 没有多消息话题
 
                 # 创建rosbag
                 bag = rosbag.Bag(bag_filename, "w")
 
                 try:
-                    # 写入所有消息
+                    # 写入所有消息（多消息缓冲区和单消息缓冲区）
                     for topic, msg, timestamp in self.message_buffer:
                         bag.write(topic, msg, timestamp)
 
-                    message_count = len(self.message_buffer)
+                    for topic, msg, timestamp in self.single_message_buffer:
+                        bag.write(topic, msg, timestamp)
+
+                    message_count = len(self.message_buffer) + len(
+                        self.single_message_buffer
+                    )
 
                 finally:
                     bag.close()
 
-            success_msg = "已保存 {} 条消息到 {}".format(message_count, bag_filename)
-            rospy.loginfo(success_msg)
-            return TriggerResponse(success=True, message=success_msg)
+            success_msg_cn = (
+                "已保存 {} 条消息到 {}, 录制时长: {:.1f}秒, 话题: {}个".format(
+                    message_count,
+                    bag_filename,
+                    oldest_age,
+                    total_topics,
+                )
+            )
+            success_msg_en = "Saved to {} ({} msgs, {:.1f}s, {} topics)".format(
+                bag_filename,  # 只显示文件名，不显示完整路径
+                message_count,
+                oldest_age,
+                total_topics,
+            )
+            rospy.loginfo(success_msg_cn)
+            return TriggerResponse(success=True, message=success_msg_en)
 
         except Exception as e:
-            error_msg = "保存失败: {}".format(str(e))
-            rospy.logerr(error_msg)
-            return TriggerResponse(success=False, message=error_msg)
+            error_msg_cn = "保存失败: {}".format(str(e))
+            error_msg_en = "Save failed: {}".format(str(e))
+            rospy.logerr(error_msg_cn)
+            return TriggerResponse(success=False, message=error_msg_en)
 
     def clear_buffer_callback(self, req):
         """清空缓冲区"""
         try:
             with self.buffer_lock:
-                count = len(self.message_buffer)
+                count = len(self.message_buffer) + len(self.single_message_buffer)
                 self.message_buffer.clear()
+                self.single_message_buffer.clear()
 
-            msg = "已清空 {} 条消息".format(count)
-            rospy.loginfo(msg)
-            return TriggerResponse(success=True, message=msg)
+            msg_cn = "已清空 {} 条消息".format(count)
+            msg_en = "Cleared {} messages".format(count)
+            rospy.loginfo(msg_cn)
+            return TriggerResponse(success=True, message=msg_en)
 
         except Exception as e:
-            error_msg = "清空缓冲区失败: {}".format(str(e))
-            rospy.logerr(error_msg)
-            return TriggerResponse(success=False, message=error_msg)
+            error_msg_cn = "清空缓冲区失败: {}".format(str(e))
+            error_msg_en = "Clear buffer failed: {}".format(str(e))
+            rospy.logerr(error_msg_cn)
+            return TriggerResponse(success=False, message=error_msg_en)
 
     def run(self):
         """运行节点"""

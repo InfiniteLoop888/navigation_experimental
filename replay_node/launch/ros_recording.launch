@@ -3,14 +3,14 @@
     <!-- ROS消息回放节点 -->
     
     <!-- 参数配置 -->
-    <arg name="buffer_duration" default="30.0" doc="缓冲时长（秒）"/>
+    <arg name="buffer_duration" default="10.0" doc="缓冲时长（秒）"/>
     <arg name="save_directory" default="/tmp/ros_replay" doc="保存目录"/>
     
     <!-- 话题列表文件路径 (仅在record_all=false时使用) -->
-    <arg name="topics_file" default="" doc="话题列表文件路径"/>
+    <arg name="topics_file" default="$(find replay_node)/config/topic.txt" doc="话题列表文件路径"/>
     
     <!-- 录制模式 -->
-    <arg name="record_all" default="true" doc="是否录制所有话题 (true=录制所有, false=录制指定话题)"/>
+    <arg name="record_all" default="false" doc="是否录制所有话题 (true=录制所有, false=录制指定话题)"/>
     
     <!-- 启动记录节点 -->
     <node pkg="replay_node" type="ros_recording_node.py" name="ros_recording_node" output="screen">
