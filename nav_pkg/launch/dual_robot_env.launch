@@ -1,0 +1,186 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- 
+    同时运行两个机器人环境，使用话题重映射和TF前缀隔离
+    注意：只能启动一个Gazebo实例，两个机器人在同一个Gazebo环境中
+    使用方法：
+    roslaunch nav_pkg dual_robot_env.launch
+    
+    控制机器人1：
+    rostopic pub /robot1/cmd_vel geometry_msgs/Twist ...
+    rostopic pub /robot1/move_base_simple/goal geometry_msgs/PoseStamped ...
+    
+    控制机器人2：
+    rostopic pub /robot2/cmd_vel geometry_msgs/Twist ...
+    rostopic pub /robot2/move_base_simple/goal geometry_msgs/PoseStamped ...
+    -->
+    
+    <!-- 共享的Gazebo环境 - 只启动一次 -->
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name" value="$(find wpr_simulation)/worlds/robocup_home.world"/>
+        <arg name="paused" value="false"/>
+        <arg name="use_sim_time" value="true"/>
+        <arg name="gui" value="true"/>
+        <arg name="recording" value="false"/>
+        <arg name="debug" value="false"/>
+    </include>
+    
+    <!-- 共享的map_server - map是全局的，两个机器人共享同一个地图 -->
+    <node pkg="map_server" type="map_server" name="map_server" args="$(find wpr_simulation)/maps/map_empty.yaml"/>
+    
+    <!-- 机器人1环境 -->
+    <group ns="robot1">
+        <!-- 设置TF前缀参数 -->
+        <param name="tf_prefix" value="robot1"/>
+        
+        <!-- robot_description for robot1 -->
+        <arg name="model_robot1" default="$(find wpr_simulation)/models/wpb_home.model"/>
+        <param name="robot_description" command="$(find xacro)/xacro $(arg model_robot1)" />
+        
+        <!-- Spawn机器人1到Gazebo -->
+        <node name="spawn_urdf_robot1" pkg="gazebo_ros" type="spawn_model" 
+              args="-file $(find wpr_simulation)/models/wpb_home.model -urdf -x 0.0 -y 0.0 -model wpb_home_robot1">
+        </node>
+        
+        <!-- robot_state_publisher for robot1 -->
+        <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+            <param name="tf_prefix" value="robot1"/>
+            <remap from="joint_states" to="/robot1/joint_states"/>
+        </node>
+        <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+            <remap from="joint_states" to="/robot1/joint_states"/>
+        </node>
+        
+        <!-- lidar filter for robot1 -->
+        <node pkg="wpr_simulation" type="lidar_filter" name="lidar_filter">
+            <remap from="scan" to="/robot1/scan"/>
+        </node>
+        
+        <!-- 启动导航系统 -->
+        <!--- Run move_base -->
+        <node pkg="move_base" type="move_base" name="move_base" respawn="false" output="screen">
+            <rosparam file="$(find nav_pkg)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+            <rosparam file="$(find nav_pkg)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+            <rosparam file="$(find nav_pkg)/config/global_costmap_params.yaml" command="load" />
+            <rosparam file="$(find nav_pkg)/config/local_costmap_params.yaml" command="load" />
+            <param name="SBPLLatticePlanner/primitive_filename" value="$(find nav_pkg)/mprim/unicycle_diff_5cm.mprim" />
+            <rosparam file="$(find nav_pkg)/config/move_base_params.yaml" command="load" />
+            <rosparam file="$(find nav_pkg)/config/sbpl_global_planner_params.yaml" command="load" />
+            <rosparam file="$(find nav_pkg)/config/teb_local_planner_params2.yaml" command="load" />
+            
+            <!-- 重映射话题 -->
+            <remap from="/move_base/goal" to="/robot1/move_base/goal"/>
+            <remap from="/move_base/cancel" to="/robot1/move_base/cancel"/>
+            <remap from="/move_base/status" to="/robot1/move_base/status"/>
+            <remap from="/move_base/result" to="/robot1/move_base/result"/>
+            <remap from="/move_base/feedback" to="/robot1/move_base/feedback"/>
+            <remap from="/move_base_simple/goal" to="/robot1/move_base_simple/goal"/>
+            <remap from="/scan" to="/robot1/scan"/>
+            <remap from="/odom" to="/robot1/odom"/>
+            <remap from="/cmd_vel" to="/robot1/cmd_vel"/>
+            <remap from="/map" to="/map"/>
+            
+            <!-- 配置TF框架 -->
+            <param name="global_costmap/global_frame" value="map"/>
+            <param name="global_costmap/robot_base_frame" value="robot1/base_footprint"/>
+            <param name="local_costmap/global_frame" value="robot1/odom"/>
+            <param name="local_costmap/robot_base_frame" value="robot1/base_footprint"/>
+            
+            <!-- 配置costmap地图话题 -->
+            <param name="global_costmap/static_layer/map_topic" value="/map"/>
+        </node>
+        
+        <!-- 配置AMCL使用正确的TF前缀 -->
+        <node pkg="amcl" type="amcl" name="amcl" output="screen">
+            <param name="odom_frame_id" value="robot1/odom"/>
+            <param name="base_frame_id" value="robot1/base_footprint"/>
+            <param name="global_frame_id" value="map"/>
+            <param name="use_map_topic" value="true"/>
+            <remap from="scan" to="/robot1/scan"/>
+            <remap from="map" to="/map"/>
+            <remap from="amcl_pose" to="/robot1/amcl_pose"/>
+            <remap from="particlecloud" to="/robot1/particlecloud"/>
+        </node>
+        
+    </group>
+    
+    <!-- 机器人2环境 -->
+    <group ns="robot2">
+        <!-- 设置TF前缀参数 -->
+        <param name="tf_prefix" value="robot2"/>
+        
+        <!-- robot_description for robot2 -->
+        <arg name="model_robot2" default="$(find wpr_simulation)/models/wpb_home.model"/>
+        <param name="robot_description" command="$(find xacro)/xacro $(arg model_robot2)" />
+        
+        <!-- Spawn机器人2到Gazebo -->
+        <node name="spawn_urdf_robot2" pkg="gazebo_ros" type="spawn_model" 
+              args="-file $(find wpr_simulation)/models/wpb_home.model -urdf -x 1.0 -y 0.0 -model wpb_home_robot2">
+        </node>
+        
+        <!-- robot_state_publisher for robot2 -->
+        <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+            <param name="tf_prefix" value="robot2"/>
+            <remap from="joint_states" to="/robot2/joint_states"/>
+        </node>
+        <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+            <remap from="joint_states" to="/robot2/joint_states"/>
+        </node>
+        
+        <!-- lidar filter for robot2 -->
+        <node pkg="wpr_simulation" type="lidar_filter" name="lidar_filter">
+            <remap from="scan" to="/robot2/scan"/>
+        </node>
+        
+        <!-- 启动导航系统 -->
+        <!--- Run move_base -->
+        <node pkg="move_base" type="move_base" name="move_base" respawn="false" output="screen">
+            <rosparam file="$(find nav_pkg)/config/costmap_common_params2.yaml" command="load" ns="global_costmap" />
+            <rosparam file="$(find nav_pkg)/config/costmap_common_params2.yaml" command="load" ns="local_costmap" />
+            <rosparam file="$(find nav_pkg)/config/global_costmap_params.yaml" command="load" />
+            <rosparam file="$(find nav_pkg)/config/local_costmap_params.yaml" command="load" />
+            <rosparam file="$(find nav_pkg)/config/move_base_params.yaml" command="load" />
+            <!-- <param name="base_global_planner" value="global_planner/GlobalPlanner" />
+            <param name="GlobalPlanner/use_dijkstra" value="false" />
+            <param name="GlobalPlanner/use_grid_path" value="true" />
+            <param name="GlobalPlanner/old_navfn_behavior" value="true" /> -->
+            <param name="base_global_planner" value="carrot_planner/CarrotPlanner" />
+            <rosparam file="$(find nav_pkg)/config/teb_local_planner_params.yaml" command="load" />
+            
+            <!-- 重映射话题 -->
+            <remap from="/move_base/goal" to="/robot2/move_base/goal"/>
+            <remap from="/move_base/cancel" to="/robot2/move_base/cancel"/>
+            <remap from="/move_base/status" to="/robot2/move_base/status"/>
+            <remap from="/move_base/result" to="/robot2/move_base/result"/>
+            <remap from="/move_base/feedback" to="/robot2/move_base/feedback"/>
+            <remap from="/move_base_simple/goal" to="/robot2/move_base_simple/goal"/>
+            <remap from="/scan" to="/robot2/scan"/>
+            <remap from="/odom" to="/robot2/odom"/>
+            <remap from="/cmd_vel" to="/robot2/cmd_vel"/>
+            <remap from="/map" to="/map"/>
+            
+            <!-- 配置TF框架 -->
+            <param name="global_costmap/global_frame" value="map"/>
+            <param name="global_costmap/robot_base_frame" value="robot2/base_footprint"/>
+            <param name="local_costmap/global_frame" value="robot2/odom"/>
+            <param name="local_costmap/robot_base_frame" value="robot2/base_footprint"/>
+            
+            <!-- 配置costmap地图话题 -->
+            <param name="global_costmap/static_layer/map_topic" value="/map"/>
+        </node>
+        
+        <!-- 配置AMCL使用正确的TF前缀 -->
+        <node pkg="amcl" type="amcl" name="amcl" output="screen">
+            <param name="odom_frame_id" value="robot2/odom"/>
+            <param name="base_frame_id" value="robot2/base_footprint"/>
+            <param name="global_frame_id" value="map"/>
+            <param name="use_map_topic" value="true"/>
+            <remap from="scan" to="/robot2/scan"/>
+            <remap from="map" to="/map"/>
+            <remap from="amcl_pose" to="/robot2/amcl_pose"/>
+            <remap from="particlecloud" to="/robot2/particlecloud"/>
+        </node>
+        
+    </group>
+    
+</launch>

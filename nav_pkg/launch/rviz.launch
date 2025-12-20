@@ -1,0 +1,5 @@
+<launch>
+    <!--- Run rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find wpr_simulation)/rviz/nav.rviz" output="log"/>
+    
+</launch>

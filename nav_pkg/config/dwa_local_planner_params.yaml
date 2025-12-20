@@ -1,0 +1,45 @@
+DWAPlannerROS:
+  # 运动学约束：仅前/后进与原地转向
+  max_vel_x: 0.4
+  min_vel_x: -0.20          # 允许后退，降低幅度平滑切换
+  max_vel_y: 0.0
+  min_vel_y: 0.0
+  holonomic_robot: false
+
+  max_vel_theta: 1.0
+  min_vel_theta: -1.0
+  acc_lim_x: 0.4
+  acc_lim_theta: 1.0
+
+  # 采样
+  vx_samples: 12
+  vy_samples: 1
+  vtheta_samples: 30
+
+  # 轨迹模拟
+  sim_time: 2.0
+  sim_granularity: 0.025
+  angular_sim_granularity: 0.025
+
+  # 评估权重
+  path_distance_bias: 24.0
+  goal_distance_bias: 20.0
+  occdist_scale: 0.8
+  forward_point_distance: 0.325
+
+  # 目标容忍
+  yaw_goal_tolerance: 0.15
+  xy_goal_tolerance: 0.10
+  latch_xy_goal_tolerance: false
+
+  # 停止相关
+  stop_time_buffer: 0.4
+  oscillation_reset_dist: 0.10
+
+  # 障碍/膨胀
+  inflation_radius: 0.1
+  cost_scaling_factor: 10.0
+
+  # 其他
+  prune_plan: true
+

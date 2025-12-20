@@ -1,0 +1,35 @@
+<launch>
+    <!--- Run move_base with daily log rotation -->
+    <node pkg="move_base" type="move_base" name="move_base" respawn="false" output="screen">
+
+        <rosparam file="$(dirname)/../config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+        <rosparam file="$(dirname)/../config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+        <rosparam file="$(dirname)/../config/global_costmap_params.yaml" command="load" />
+        <rosparam file="$(dirname)/../config/local_costmap_params.yaml" command="load" />
+
+        <param name="SBPLLatticePlanner/primitive_filename" value="$(dirname)/../mprim2/A2D.mprim" />
+        <rosparam file="$(dirname)/../config/move_base_params.yaml" command="load" />
+        <!-- <param name="base_global_planner" value="global_planner/GlobalPlanner" /> -->
+        <rosparam file="$(dirname)/../config/sbpl_global_planner_params.yaml" command="load" />
+        <!-- <rosparam file="$(dirname)/../config/teb_local_planner_params.yaml" command="load" />  -->
+        <!-- <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" /> -->
+        <param name="base_local_planner" value="nav_pkg/SimplePathFollower"/>
+        <rosparam file="$(dirname)/../config/simple_path_follower_params.yaml" command="load"/>
+
+    </node>
+
+    <!-- Run map server -->
+    <node pkg="map_server" type="map_server" name="map_server" args="$(find wpr_simulation)/maps/map.yaml"/>
+
+    <!--- Run AMCL -->
+    <node pkg="amcl" type="amcl" name="amcl"/>
+
+    <!--- Run rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find wpr_simulation)/rviz/nav.rviz" output="log"/>
+    
+    <!-- 启动导航日志收集器 -->
+    <node name="navigation_logger" pkg="nav_pkg" type="navigation_logger.py" output="screen">
+        <param name="log_file_path" value="/tmp/navigation_system.log" />
+        <param name="log_level" value="INFO" />
+    </node>
+</launch>

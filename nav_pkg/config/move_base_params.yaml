@@ -1,0 +1,33 @@
+# 关键参数设置
+# force_planning_from_scratch: true  # 强制从头规划，而不是修改现有路径
+
+# Replanning frequency of local planner
+controller_frequency: 10.0
+# If the controller failed, clear obstacles and retry; after 'controller_patience' seconds, abort and replan
+controller_patience: 3.0
+# Don't continually replan (only when controller failed)
+planner_frequency: 0.5
+# If the first planning attempt failed, abort planning retries after 'planner_patience' seconds...
+planner_patience: 5.0
+ # ... or after 'max_planning_retries' attempts (whichever happens first)
+max_planning_retries: 10
+# Abort controller and trigger recovery behaviors after 'oscillation_timeout' seconds
+oscillation_timeout: 10.0 # 30.0
+
+# 当发现路径被阻塞时的行为
+recovery_behavior_enabled: true # false
+conservative_reset_dist: 3.0
+clearing_rotation_allowed: true
+
+recovery_behaviors:
+  - name: "conservative_reset"
+    type: "clear_costmap_recovery/ClearCostmapRecovery"  # 清空成本地图
+  # - name: "rotate_recovery"
+  #   type: "rotate_recovery/RotateRecovery"              # 原地旋转
+  - name: "aggressive_reset"
+    type: "clear_costmap_recovery/ClearCostmapRecovery"  # 再次清空成本地图
+# recovery_behaviors: [{name: conservative_reset, type: clear_costmap_recovery/ClearCostmapRecovery},{name: rotate_recovery, type: rotate_recovery/RotateRecovery}, {name: aggressive_reset, type: clear_costmap_recovery/ClearCostmapRecovery}]
+conservative_reset:
+  # Clear obstacles farther away than 'reset_distance' meters
+  reset_distance: 0.0
+  # force_updating: true

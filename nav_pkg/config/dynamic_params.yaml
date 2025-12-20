@@ -1,0 +1,37 @@
+# 动态参数配置示例
+# 包含两套配置：default（默认）和 narrow（狭窄环境）
+
+default:
+  # 全局代价地图参数
+  # inflation_layer 才是默认插件名称，支持 dynamic_reconfigure
+  /move_base/global_costmap/inflation_layer/inflation_radius: 0.3
+  /move_base/global_costmap/inflation_layer/cost_scaling_factor: 10.0
+  # footprint 需要是字符串形式的坐标列表，例如 "[[x1,y1], [x2,y2], ...]"
+  /move_base/global_costmap/footprint: "[[-0.12, 0.24], [0.12, 0.24], [0.12, -0.24], [-0.12, -0.24]]"
+  
+  # 局部代价地图参数
+  /move_base/local_costmap/inflation_layer/inflation_radius: 0.19
+  /move_base/local_costmap/inflation_layer/cost_scaling_factor: 10.0
+  /move_base/local_costmap/footprint: "[[-0.12, 0.24], [0.12, 0.24], [0.12, -0.24], [-0.12, -0.24]]"
+  
+  # TEB 局部规划器参数
+  /move_base/TebLocalPlannerROS/min_obstacle_dist: 0.2
+  /move_base/TebLocalPlannerROS/inflation_dist: 0.3
+  /move_base/TebLocalPlannerROS/penalty_epsilon: 0.2
+  /move_base/TebLocalPlannerROS/max_vel_x: 0.5
+  /move_base/TebLocalPlannerROS/max_vel_trans: 0.5
+
+narrow:
+  # 狭窄环境：减小膨胀半径，收缩 footprint
+  /move_base/global_costmap/inflation_layer/inflation_radius: 0.3
+  /move_base/global_costmap/inflation_layer/cost_scaling_factor: 10.0
+  /move_base/global_costmap/footprint: "[[-0.01, -0.01], [-0.01, 0.01], [0.01, 0.01], [0.01, -0.01]]"
+  
+  /move_base/local_costmap/inflation_layer/inflation_radius: 0.01
+  /move_base/local_costmap/inflation_layer/cost_scaling_factor: 100.0
+  /move_base/local_costmap/footprint: "[[-0.01, -0.01], [-0.01, 0.01], [0.01, 0.01], [0.01, -0.01]]"
+  
+  # TEB 局部规划器参数
+  /move_base/TebLocalPlannerROS/min_obstacle_dist: 0.01
+  /move_base/TebLocalPlannerROS/inflation_dist: 0.05
+  /move_base/TebLocalPlannerROS/penalty_epsilon: 0.01

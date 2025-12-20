@@ -1,0 +1,8 @@
+<library path="libsimple_path_follower">
+  <class name="nav_pkg/SimplePathFollower" type="nav_pkg::SimplePathFollower" base_class_type="nav_core::BaseLocalPlanner">
+    <description>
+      A simple local planner that follows the global path by tracking waypoints ahead of the robot.
+    </description>
+  </class>
+</library>
+

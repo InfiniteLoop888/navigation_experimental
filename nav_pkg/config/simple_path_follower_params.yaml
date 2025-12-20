@@ -1,0 +1,25 @@
+SimplePathFollower:
+  # Maximum linear velocity (m/s)
+  max_vel_x: 0.5
+  
+  # Maximum angular velocity (rad/s)
+  max_vel_theta: 1.0
+  
+  # Lookahead distance for target point (m)
+  lookahead_dist: 0.5
+  
+  # Goal tolerance distance (m)
+  goal_tolerance: 0.1
+  
+  # Goal tolerance angle (rad)
+  goal_tolerance_theta: 0.05
+  
+  # Linear velocity proportional gain
+  kp_linear: 1.0
+  
+  # Angular velocity proportional gain
+  kp_angular: 2.0
+  
+  # Minimum linear velocity (m/s)
+  min_vel_x: 0.05
+
