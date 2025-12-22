@@ -4,6 +4,7 @@ project(move_base)
 find_package(catkin REQUIRED
     COMPONENTS
         actionlib
+        angles
         base_local_planner
         clear_costmap_recovery
         cmake_modules
@@ -29,6 +30,7 @@ add_definitions(${EIGEN3_DEFINITIONS})
 # dynamic reconfigure
 generate_dynamic_reconfigure_options(
     cfg/MoveBase.cfg
+    cfg/SimplePathFollower.cfg
 )
 
 catkin_package(
@@ -68,6 +70,15 @@ add_dependencies(move_base_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXP
 target_link_libraries(move_base_node move_base)
 set_target_properties(move_base_node PROPERTIES OUTPUT_NAME move_base)
 
+# simple_path_follower plugin
+add_library(simple_path_follower
+  src/simple_path_follower.cpp
+)
+target_link_libraries(simple_path_follower
+    ${catkin_LIBRARIES}
+)
+add_dependencies(simple_path_follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 install(
     TARGETS
         move_base_node
@@ -77,6 +88,7 @@ install(
 install(
     TARGETS
         move_base
+        simple_path_follower
     DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 )
 
@@ -84,4 +96,9 @@ install(
 install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
   FILES_MATCHING PATTERN "*.h"
+)
+
+## Install plugin description file
+install(FILES simple_path_follower_plugin.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

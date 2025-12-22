@@ -23,6 +23,7 @@
     <build_depend>tf2_geometry_msgs</build_depend>
 
     <depend>actionlib</depend>
+    <depend>angles</depend>
     <depend>costmap_2d</depend>
     <depend>dynamic_reconfigure</depend>
     <depend>geometry_msgs</depend>
@@ -43,5 +44,9 @@
     <depend>rotate_recovery</depend>
 
     <exec_depend>message_runtime</exec_depend>
+
+    <export>
+        <nav_core plugin="${prefix}/simple_path_follower_plugin.xml"/>
+    </export>
 
 </package>
