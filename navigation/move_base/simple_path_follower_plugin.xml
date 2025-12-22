@@ -1,4 +1,4 @@
-<library path="libsimple_path_follower">
+<library path="lib/libsimple_path_follower">
   <class name="move_base/SimplePathFollower" type="move_base::SimplePathFollower" base_class_type="nav_core::BaseLocalPlanner">
     <description>
       A simple local planner that follows the global path by tracking waypoints ahead of the robot.

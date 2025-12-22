@@ -79,6 +79,15 @@ target_link_libraries(simple_path_follower
 )
 add_dependencies(simple_path_follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
+# Create lib directory and symlink for plugin loading in devel space
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+add_custom_command(TARGET simple_path_follower POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+    $<TARGET_FILE:simple_path_follower>
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/libsimple_path_follower.so
+    COMMENT "Creating symlink for plugin loading"
+)
+
 install(
     TARGETS
         move_base_node
