@@ -10,14 +10,16 @@ ROS消息记录节点
 注意：回放功能由独立的replay_player_node.py提供
 """
 
-import rospy
-import rosbag
 import threading
 import os
 import time
+import traceback
 from collections import deque
 from std_srvs.srv import Trigger, TriggerResponse
 from std_msgs.msg import String
+import yaml
+import rospy
+import rosbag
 import rostopic
 
 
@@ -48,6 +50,10 @@ class RosRecordingNode:
         elif self.topics_file and os.path.exists(self.topics_file):
             self.topics_to_record = self.load_topics_from_file(self.topics_file)
             rospy.loginfo("从文件加载话题列表: {}".format(self.topics_file))
+            # 确保包含 /rosout 用于自动保存触发
+            if "/rosout" not in self.topics_to_record:
+                self.topics_to_record.append("/rosout")
+                rospy.loginfo("自动添加 /rosout 到订阅列表")
         else:
             # 如果没有指定话题文件，使用默认话题列表
             self.topics_to_record = ["/rosout", "/tf"]
@@ -66,7 +72,9 @@ class RosRecordingNode:
 
         # 消息缓冲区：存储(topic, msg, timestamp)
         self.message_buffer = deque()
-        self.single_message_buffer = deque()  # 存储只有一个消息的话题
+        self.single_message_buffer = (
+            {}
+        )  # 存储只有一个消息的话题 {topic: (msg, timestamp)}
         self.buffer_lock = threading.Lock()
 
         # 录制开始时间（使用第一个话题的时间）
@@ -85,6 +93,10 @@ class RosRecordingNode:
 
         # 状态发布者
         self.status_pub = rospy.Publisher("~status", String, queue_size=10)
+
+        # 上次自动保存时间
+        self.last_auto_save_time = 0
+        self.auto_save_interval = 10.0  # 自动保存间隔（秒）
 
         # 启动订阅
         if not self.record_all:
@@ -105,27 +117,56 @@ class RosRecordingNode:
         rospy.loginfo("提示：使用 replay_player_node.py 来回放保存的bag文件")
 
     def load_topics_from_file(self, filepath):
-        """从文件加载话题列表
+        """从YAML文件加载话题列表
 
         Args:
-            filepath: 话题列表文件路径，每行一个话题
+            filepath: 话题列表YAML文件路径，支持两种格式：
+                      1. 简单列表格式: [- /odom, - /cmd_vel]
+                      2. 字典格式: {topics: [/odom, /cmd_vel]}
 
         Returns:
             话题列表
         """
         topics = []
         try:
-            with open(filepath, "r") as f:
-                for line in f:
-                    # 去除空白字符和注释
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        topics.append(line)
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+
+                # 如果是列表格式
+                if isinstance(data, list):
+                    topics = [str(topic).strip() for topic in data if topic]
+                # 如果是字典格式，尝试获取 topics 键
+                elif isinstance(data, dict):
+                    if "topics" in data:
+                        topics = [
+                            str(topic).strip() for topic in data["topics"] if topic
+                        ]
+                    else:
+                        rospy.logwarn("YAML文件中未找到 'topics' 键，尝试使用所有值")
+                        # 尝试将所有值作为话题
+                        for _, value in data.items():
+                            if isinstance(value, list):
+                                topics.extend(
+                                    [str(topic).strip() for topic in value if topic]
+                                )
+                            elif isinstance(value, str) and value:
+                                topics.append(value.strip())
+                # 如果是None或空文件
+                elif data is None:
+                    rospy.logwarn("YAML文件为空")
+                else:
+                    rospy.logwarn("不支持的YAML格式: {}".format(type(data)))
+
+            # 过滤空字符串和注释
+            topics = [topic for topic in topics if topic and not topic.startswith("#")]
 
             rospy.loginfo("从 {} 加载了 {} 个话题".format(filepath, len(topics)))
             return topics
 
-        except Exception as e:
+        except yaml.YAMLError as e:
+            rospy.logerr("YAML解析失败: {}".format(str(e)))
+            return []
+        except (IOError, OSError) as e:
             rospy.logerr("读取话题文件失败: {}".format(str(e)))
             return []
 
@@ -147,8 +188,9 @@ class RosRecordingNode:
                         topic, msg_class, self.message_callback, callback_args=topic
                     )
                     rospy.loginfo("已订阅话题: {}".format(topic))
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 rospy.logerr("订阅话题 {} 失败: {}".format(topic, str(e)))
+                rospy.logerr("异常堆栈: {}".format(traceback.format_exc()))
 
     def wait_for_topic(self, topic):
         """等待话题出现并订阅"""
@@ -162,8 +204,10 @@ class RosRecordingNode:
                     )
                     rospy.loginfo("已订阅话题: {}".format(topic))
                     break
-            except:
-                pass
+            except Exception as ex:  # pylint: disable=broad-except
+                # 在等待话题出现的过程中，可能会遇到各种异常（如话题类型变化等），记录日志以便排查
+                rospy.logdebug("等待话题 {} 时出现异常: {}".format(topic, str(ex)))
+                rospy.logdebug("异常堆栈: {}".format(traceback.format_exc()))
             rate.sleep()
 
     def discover_topics(self):
@@ -181,8 +225,9 @@ class RosRecordingNode:
                         known_topics.add(topic_name)
                         self.subscribe_to_topic(topic_name, topic_type)
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 rospy.logwarn("发现话题时出错: {}".format(str(e)))
+                rospy.logwarn("异常堆栈: {}".format(traceback.format_exc()))
 
             rate.sleep()
 
@@ -204,8 +249,9 @@ class RosRecordingNode:
                 rospy.logwarn(
                     "无法获取话题 {} 的消息类型: {}".format(topic_name, topic_type)
                 )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             rospy.logwarn("订阅话题 {} 失败: {}".format(topic_name, str(e)))
+            rospy.logwarn("异常堆栈: {}".format(traceback.format_exc()))
 
     def message_callback(self, msg, topic):
         """消息回调函数"""
@@ -222,6 +268,25 @@ class RosRecordingNode:
             # 限制缓冲区大小（防止内存溢出）
             if len(self.message_buffer) > 100000:  # 最多10万条消息
                 self.message_buffer.popleft()
+
+        # 检查 /rosout 消息触发自动保存
+        if topic == "/rosout":
+            try:
+                # 获取日志内容，兼容 msg.msg 和 str(msg)
+                log_content = getattr(msg, "msg", str(msg))
+                if "Solution not found" in log_content:
+                    now_sec = current_time.to_sec()
+                    if now_sec - self.last_auto_save_time > self.auto_save_interval:
+                        self.last_auto_save_time = now_sec
+                        rospy.loginfo("检测到 'Solution not found'，触发自动保存")
+                        # 启动线程进行保存，避免阻塞回调
+                        save_thread = threading.Thread(
+                            target=self.save_buffer_callback, args=(None,)
+                        )
+                        save_thread.daemon = True
+                        save_thread.start()
+            except Exception as e:  # pylint: disable=broad-except
+                rospy.logwarn("自动保存检查失败: {}".format(str(e)))
 
     def cleanup_old_messages(self):
         """清理超过缓冲时长的旧消息"""
@@ -250,21 +315,18 @@ class RosRecordingNode:
                         elif topic_counts.get(topic, 0) <= 1:
                             # 过期的消息，但如果该话题只有一条消息，移到单消息缓冲区
                             self.message_buffer.popleft()
-                            self.single_message_buffer.append((topic, msg, timestamp))
+                            # 直接存储或更新该话题（字典会自动覆盖）
+                            self.single_message_buffer[topic] = (msg, timestamp)
                         else:
                             # 过期的多消息话题，删除第一条消息
                             self.message_buffer.popleft()
                             topic_counts[topic] -= 1
 
-                # 发布状态
-                buffer_size = len(self.message_buffer)
-                single_buffer_size = len(self.single_message_buffer)
-                total_buffer_size = buffer_size + single_buffer_size
+                    # 获取状态信息（在锁内）
+                    buffer_size = len(self.message_buffer)
+                    single_buffer_size = len(self.single_message_buffer)
+                    total_buffer_size = buffer_size + single_buffer_size
 
-                # 计算录制时长（使用第一个话题的时间）
-                recording_duration = (current_time - self.recording_start_time).to_sec()
-
-                if total_buffer_size > 0:
                     # 计算最旧消息年龄（只考虑多消息话题）
                     multi_message_topics = []
                     for topic, _, timestamp in self.message_buffer:
@@ -284,7 +346,13 @@ class RosRecordingNode:
                     )  # 加上单消息缓冲区中的话题
                     total_topics = len(topic_counts) + len(self.single_message_buffer)
 
-                    status_msg = "录制时长: {:.1f}秒 | 缓冲区: {} 条消息 (多消息: {}, 单消息: {}) | 最旧: {:.1f}秒前 | 话题: {}个 (单条消息: {}个)".format(
+                # 发布状态（在锁外）
+                # 计算录制时长（使用第一个话题的时间）
+                recording_duration = (current_time - self.recording_start_time).to_sec()
+
+                if total_buffer_size > 0:
+                    status_msg = "录制时长: {:.1f}秒 | 缓冲区: {} 条消息 (多消息: {}, 单消息: {}) | \
+                        最旧: {:.1f}秒前 | 话题: {}个 (单条消息: {}个)".format(
                         recording_duration,
                         total_buffer_size,
                         buffer_size,
@@ -300,8 +368,9 @@ class RosRecordingNode:
 
                 rospy.loginfo(status_msg)
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 rospy.logerr("清理消息时出错: {}".format(str(e)))
+                rospy.logerr("异常堆栈: {}".format(traceback.format_exc()))
 
             rate.sleep()
 
@@ -328,15 +397,7 @@ class RosRecordingNode:
                 for topic, _, _ in self.message_buffer:
                     topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
-                single_message_topics = sum(
-                    1 for count in topic_counts.values() if count == 1
-                ) + len(self.single_message_buffer)
                 total_topics = len(topic_counts) + len(self.single_message_buffer)
-
-                # 计算录制时长（使用第一个话题的时间）
-                recording_duration = (
-                    rospy.Time.now() - self.recording_start_time
-                ).to_sec()
 
                 # 计算最旧消息年龄（只考虑多消息话题）
                 current_time = rospy.Time.now()
@@ -352,19 +413,24 @@ class RosRecordingNode:
 
                 # 创建rosbag
                 bag = rosbag.Bag(bag_filename, "w")
-
+                all_messages = []
                 try:
                     # 写入所有消息（多消息缓冲区和单消息缓冲区）
                     for topic, msg, timestamp in self.message_buffer:
+                        all_messages.append((topic, msg, timestamp))
+
+                    earliest_time = self.message_buffer[0][2]
+                    for topic, (
+                        msg,
+                        _,
+                    ) in self.single_message_buffer.items():
+                        all_messages.append((topic, msg, earliest_time))
+
+                    all_messages.sort(key=lambda x: x[2])
+
+                    message_count = len(all_messages)
+                    for topic, msg, timestamp in all_messages:
                         bag.write(topic, msg, timestamp)
-
-                    for topic, msg, timestamp in self.single_message_buffer:
-                        bag.write(topic, msg, timestamp)
-
-                    message_count = len(self.message_buffer) + len(
-                        self.single_message_buffer
-                    )
-
                 finally:
                     bag.close()
 
@@ -385,10 +451,11 @@ class RosRecordingNode:
             rospy.loginfo(success_msg_cn)
             return TriggerResponse(success=True, message=success_msg_en)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             error_msg_cn = "保存失败: {}".format(str(e))
             error_msg_en = "Save failed: {}".format(str(e))
             rospy.logerr(error_msg_cn)
+            rospy.logerr("异常堆栈: {}".format(traceback.format_exc()))
             return TriggerResponse(success=False, message=error_msg_en)
 
     def clear_buffer_callback(self, req):
@@ -404,10 +471,11 @@ class RosRecordingNode:
             rospy.loginfo(msg_cn)
             return TriggerResponse(success=True, message=msg_en)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             error_msg_cn = "清空缓冲区失败: {}".format(str(e))
             error_msg_en = "Clear buffer failed: {}".format(str(e))
             rospy.logerr(error_msg_cn)
+            rospy.logerr("异常堆栈: {}".format(traceback.format_exc()))
             return TriggerResponse(success=False, message=error_msg_en)
 
     def run(self):

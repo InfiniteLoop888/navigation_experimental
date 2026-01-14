@@ -16,7 +16,7 @@
     <arg name="prefix" default="" doc="话题前缀"/>
     <arg name="quiet" default="false" doc="安静模式，抑制控制台输出"/>
     <arg name="immediate" default="false" doc="立即播放所有消息，不等待"/>
-    <arg name="pause" default="false" doc="以暂停模式开始"/>
+    <arg name="pause" default="true" doc="以暂停模式开始"/>
     <arg name="queue_size" default="100" doc="输出队列大小"/>
     <arg name="clock_hz" default="100" doc="时钟发布频率（Hz）"/>
     <arg name="delay" default="0" doc="每次发布后的延迟（秒）"/>

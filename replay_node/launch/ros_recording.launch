@@ -7,7 +7,7 @@
     <arg name="save_directory" default="/tmp/ros_replay" doc="保存目录"/>
     
     <!-- 话题列表文件路径 (仅在record_all=false时使用) -->
-    <arg name="topics_file" default="$(find replay_node)/config/topic.txt" doc="话题列表文件路径"/>
+    <arg name="topics_file" default="$(find replay_node)/config/topic.yaml" doc="话题列表文件路径"/>
     
     <!-- 录制模式 -->
     <arg name="record_all" default="false" doc="是否录制所有话题 (true=录制所有, false=录制指定话题)"/>

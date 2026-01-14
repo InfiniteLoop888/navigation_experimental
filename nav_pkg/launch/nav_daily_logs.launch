@@ -11,10 +11,10 @@
         <rosparam file="$(dirname)/../config/move_base_params.yaml" command="load" />
         <!-- <param name="base_global_planner" value="global_planner/GlobalPlanner" /> -->
         <rosparam file="$(dirname)/../config/sbpl_global_planner_params.yaml" command="load" />
-        <!-- <rosparam file="$(dirname)/../config/teb_local_planner_params.yaml" command="load" />  -->
+        <rosparam file="$(dirname)/../config/teb_local_planner_params.yaml" command="load" /> 
         <!-- <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS" /> -->
-        <param name="base_local_planner" value="move_base/SimplePathFollower"/>
-        <rosparam file="$(dirname)/../config/simple_path_follower_params.yaml" command="load"/>
+        <!-- <param name="base_local_planner" value="move_base/SimplePathFollower"/>
+        <rosparam file="$(dirname)/../config/simple_path_follower_params.yaml" command="load"/> -->
 
     </node>
 
