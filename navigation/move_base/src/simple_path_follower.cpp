@@ -46,7 +46,7 @@ PLUGINLIB_EXPORT_CLASS(move_base::SimplePathFollower, nav_core::BaseLocalPlanner
 namespace move_base {
 
 SimplePathFollower::SimplePathFollower()
-  : initialized_(false), last_closest_index_(0), rotating_to_goal_(false), tf_(NULL), costmap_ros_(NULL),
+  : initialized_(false), last_closest_index_(0), rotating_to_goal_(false), locked_goal_yaw_(0.0), tf_(NULL), costmap_ros_(NULL),
     max_vel_x_(0.5), max_vel_theta_(1.0), acc_lim_x_(0.5), acc_lim_theta_(1.0), lookahead_dist_(0.5),
     goal_tolerance_(0.1), goal_tolerance_theta_(0.1),
     kp_linear_(1.0), kp_angular_(2.0), min_vel_x_(0.05),
@@ -54,6 +54,8 @@ SimplePathFollower::SimplePathFollower()
 {
   last_cmd_vel_.linear.x = 0.0;
   last_cmd_vel_.angular.z = 0.0;
+  last_cmd_time_ = ros::Time::now();
+  rotation_start_time_ = ros::Time::now();
 }
 
 SimplePathFollower::~SimplePathFollower()
@@ -129,9 +131,45 @@ bool SimplePathFollower::setPlan(const std::vector<geometry_msgs::PoseStamped>& 
     return false;
   }
 
+  // If we're in rotation mode and the plan is for the same goal area, 
+  // keep rotation mode but update the goal orientation
+  bool was_rotating = rotating_to_goal_;
+  geometry_msgs::PoseStamped old_goal;
+  if (was_rotating && !global_plan_.empty())
+  {
+    old_goal = global_plan_.back();
+  }
+
   global_plan_ = plan;
   last_closest_index_ = 0;
-  rotating_to_goal_ = false;
+  
+  // If we were rotating and new plan has a goal, check if it's the same area
+  if (was_rotating && !plan.empty())
+  {
+    geometry_msgs::PoseStamped new_goal = plan.back();
+    double goal_dist = std::sqrt(
+      std::pow(old_goal.pose.position.x - new_goal.pose.position.x, 2) +
+      std::pow(old_goal.pose.position.y - new_goal.pose.position.y, 2)
+    );
+    
+    // If goal moved significantly, reset rotation mode
+    if (goal_dist > goal_tolerance_ * 2.0)
+    {
+      rotating_to_goal_ = false;
+      ROS_INFO("SimplePathFollower: Goal moved significantly (%.3f m), resetting rotation mode", goal_dist);
+    }
+    else
+    {
+      // Update locked goal yaw to new goal orientation
+      locked_goal_yaw_ = getYaw(new_goal.pose);
+      ROS_INFO("SimplePathFollower: Goal position similar, updating goal orientation in rotation mode");
+    }
+  }
+  else
+  {
+    rotating_to_goal_ = false;
+  }
+  
   ROS_INFO("SimplePathFollower: Received new plan with %zu waypoints", plan.size());
   return true;
 }
@@ -261,7 +299,10 @@ bool SimplePathFollower::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     if (dist_to_goal < goal_tolerance_)
     {
       rotating_to_goal_ = true;
-      ROS_INFO("SimplePathFollower: Reached goal tolerance, switching to rotation mode");
+      locked_goal_yaw_ = getYaw(goal_pose.pose);
+      rotation_start_time_ = ros::Time::now();
+      ROS_INFO("SimplePathFollower: Reached goal tolerance, switching to rotation mode. Target yaw: %.3f rad (%.1f deg)", 
+               locked_goal_yaw_, locked_goal_yaw_ * 180.0 / M_PI);
     }
   }
   else
@@ -272,12 +313,26 @@ bool SimplePathFollower::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
       rotating_to_goal_ = false;
       ROS_INFO("SimplePathFollower: Moved away from goal, switching to path following mode");
     }
+    else
+    {
+      // Update locked goal yaw if goal orientation changed significantly (but position didn't)
+      double current_goal_yaw = getYaw(goal_pose.pose);
+      double goal_yaw_diff = std::abs(angles::shortest_angular_distance(locked_goal_yaw_, current_goal_yaw));
+      // Only update if goal orientation changed by more than 30 degrees
+      if (goal_yaw_diff > M_PI / 6.0)
+      {
+        locked_goal_yaw_ = current_goal_yaw;
+        rotation_start_time_ = ros::Time::now();
+        ROS_INFO("SimplePathFollower: Goal orientation changed significantly, updating locked yaw to %.3f rad (%.1f deg)",
+                 locked_goal_yaw_, locked_goal_yaw_ * 180.0 / M_PI);
+      }
+    }
   }
 
   if (rotating_to_goal_)
   {
-    // Use goal orientation
-    desired_yaw = getYaw(goal_pose.pose);
+    // Use locked goal orientation to avoid oscillation from path replanning
+    desired_yaw = locked_goal_yaw_;
     angle_error = angles::shortest_angular_distance(robot_yaw, desired_yaw);
   }
   else
@@ -307,15 +362,55 @@ bool SimplePathFollower::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     {
       // We are at goal position but need to rotate
       linear_vel = 0.0;
+      
+      // Improved rotation control with adaptive velocity based on angle error
+      // Use proportional control with adaptive gain
+      double abs_error = std::abs(angle_error);
+      
+      // Calculate base angular velocity
       angular_vel = kp_angular_ * angle_error;
       
-      // Limit angular velocity to avoid overshooting
-      // Reduce max velocity as we get closer to target angle
+      // Adaptive max velocity based on angle error
+      // For large errors (>90 deg), use full max velocity
+      // For medium errors (30-90 deg), use moderate velocity
+      // For small errors (<30 deg), use reduced velocity to avoid overshooting
       double max_rot_vel = max_vel_theta_;
-      if (std::abs(angle_error) < 0.5) {
-          max_rot_vel *= 0.5;
+      if (abs_error > M_PI / 2.0)
+      {
+        // Large error: use full speed
+        max_rot_vel = max_vel_theta_;
       }
+      else if (abs_error > M_PI / 6.0)
+      {
+        // Medium error: use 70% of max speed
+        max_rot_vel = max_vel_theta_ * 0.7;
+      }
+      else
+      {
+        // Small error: use 40% of max speed to avoid overshooting
+        max_rot_vel = max_vel_theta_ * 0.4;
+      }
+      
+      // Ensure minimum velocity for very small errors to avoid getting stuck
+      if (abs_error > 0.01 && abs_error < goal_tolerance_theta_ * 2.0)
+      {
+        double min_rot_vel = 0.1; // Minimum rotation velocity
+        if (std::abs(angular_vel) < min_rot_vel)
+        {
+          angular_vel = (angle_error > 0) ? min_rot_vel : -min_rot_vel;
+        }
+      }
+      
       angular_vel = std::max(-max_rot_vel, std::min(angular_vel, max_rot_vel));
+      
+      // Check if we've been rotating for too long without progress (possible oscillation)
+      double rotation_duration = (ros::Time::now() - rotation_start_time_).toSec();
+      if (rotation_duration > 10.0) // 10 seconds
+      {
+        ROS_WARN_THROTTLE(2.0, "SimplePathFollower: Rotating for %.1f seconds, angle error: %.3f rad (%.1f deg). "
+                        "Possible oscillation or goal orientation issue.", 
+                        rotation_duration, abs_error, abs_error * 180.0 / M_PI);
+      }
     }
   }
   else
@@ -356,12 +451,19 @@ bool SimplePathFollower::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   // Final limit on angular velocity
   angular_vel = std::max(-max_vel_theta_, std::min(angular_vel, max_vel_theta_));
 
-  // Apply acceleration limits
-  // Assume control cycle time is approx 0.1s (10Hz) or calculate from last call
-  // For simplicity, we assume 10Hz or use a fixed dt if possible, but standard is to just clamp difference
-  // Here we'll use a conservative dt estimate of 0.1s (common for move_base)
-  double dt = 0.1;
+  // Apply acceleration limits using actual time difference
+  ros::Time current_time = ros::Time::now();
+  double dt = (current_time - last_cmd_time_).toSec();
   
+  // Clamp dt to reasonable bounds (avoid division by zero or very large values)
+  // Typical control frequency is 10-20Hz, so dt should be 0.05-0.1s
+  // If dt is too small or too large, use a default value
+  if (dt <= 0.0 || dt > 1.0)
+  {
+    dt = 0.1;  // Default to 10Hz if time is invalid
+  }
+  
+  // Calculate maximum allowed velocity change based on acceleration limits
   double max_acc_linear = acc_lim_x_ * dt;
   double max_acc_angular = acc_lim_theta_ * dt;
   
@@ -391,6 +493,7 @@ bool SimplePathFollower::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
   
   // Store for next cycle
   last_cmd_vel_ = cmd_vel;
+  last_cmd_time_ = current_time;
 
   return true;
 }

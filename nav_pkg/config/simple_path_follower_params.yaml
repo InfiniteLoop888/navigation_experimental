@@ -3,7 +3,7 @@ SimplePathFollower:
   max_vel_x: 0.5
   
   # Maximum angular velocity (rad/s)
-  max_vel_theta: 1.0
+  max_vel_theta: 2.0
   
   # Lookahead distance for target point (m)
   lookahead_dist: 0.5
@@ -22,4 +22,10 @@ SimplePathFollower:
   
   # Minimum linear velocity (m/s)
   min_vel_x: 0.05
+  
+  # Maximum linear acceleration (m/s^2)
+  acc_lim_x: 0.5
+  
+  # Maximum angular acceleration (rad/s^2)
+  acc_lim_theta: 1.0
 

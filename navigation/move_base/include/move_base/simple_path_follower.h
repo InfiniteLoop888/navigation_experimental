@@ -142,11 +142,14 @@ private:
   bool initialized_;
   unsigned int last_closest_index_;
   bool rotating_to_goal_; // State variable for hysteresis
+  double locked_goal_yaw_; // Locked goal orientation when entering rotation mode
+  ros::Time rotation_start_time_; // Time when rotation mode started
   std::string name_;
   tf2_ros::Buffer* tf_;
   costmap_2d::Costmap2DROS* costmap_ros_;
   std::vector<geometry_msgs::PoseStamped> global_plan_;
   geometry_msgs::Twist last_cmd_vel_;
+  ros::Time last_cmd_time_;  // Timestamp of last command for acceleration calculation
   
   // Dynamic reconfigure
   dynamic_reconfigure::Server<SimplePathFollowerConfig> *dsrv_;
