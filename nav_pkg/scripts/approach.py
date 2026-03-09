@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 靠近目标点脚本 (增强版)
 功能：
@@ -17,18 +15,18 @@
     approach(5.0, 2.0, yaw=0.0, check_dist=2.0, facing_obstacle=True)
 """
 
+import sys
+import math
 import rospy
 import tf2_ros
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid
 from actionlib_msgs.msg import GoalStatusArray, GoalStatus
 from std_srvs.srv import Empty
-import math
-import sys
 import numpy as np
 
-# 全局单例实例
-_sender_instance = None
+# 全局单例实例（模块级全局，按常量命名）
+SENDER_INSTANCE = None
 
 
 class RobotGoalSender:
@@ -83,8 +81,12 @@ class RobotGoalSender:
             return self.tf_buffer.lookup_transform(
                 target_frame, source_frame, rospy.Time(0), rospy.Duration(1.0)
             )
-        except Exception as e:
-            rospy.logerr("获取TF失败 (%s -> %s): %s", target_frame, source_frame, e)
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as exc:
+            rospy.logerr("获取TF失败 (%s -> %s): %s", target_frame, source_frame, exc)
             return None
 
     def transform_point(self, x, y, transform):
@@ -111,53 +113,67 @@ class RobotGoalSender:
     def check_approach(self, x, y, max_dist=2.0, angle_range=90.0):
         """
         检查点 (x, y) 是否在机器人 base_link 坐标面前指定角度范围内、指定距离内
-        
         :param x: 目标点 x 坐标 (Map Frame)
         :param y: 目标点 y 坐标 (Map Frame)
         :param max_dist: 最大距离（米），默认 2.0
         :param angle_range: 角度范围（度），默认 90.0（即 ±90 度，前方 180 度扇形）
-        :return: bool，如果在范围内返回 True，否则返回 False
+        :return: (bool, x, y)，如果在范围内返回 (True, x, y)，否则返回 (False, adjusted_x, adjusted_y)
+                 如果角度超过阈值，adjusted_x, adjusted_y 是 angle_threshold 方向上的点坐标
         """
         # 获取 base_link 到 map 的变换（用于反向计算）
         base_to_map_tf = self.get_transform('map', 'base_link')
         if not base_to_map_tf:
             rospy.logwarn("无法获取 base_link -> map 变换")
-            return False
-        
+            return False, x, y
+
         # 提取 base_link 在 map 中的位置和朝向
         robot_x = base_to_map_tf.transform.translation.x
         robot_y = base_to_map_tf.transform.translation.y
         robot_yaw = self.get_tf_yaw(base_to_map_tf)
-        
+
         # 将点从 map 坐标系转换到 base_link 坐标系（反向变换）
         # 先平移到以机器人为原点
         dx = x - robot_x
         dy = y - robot_y
-        
+
         # 再旋转到 base_link 坐标系（反向旋转）
         base_x = dx * math.cos(-robot_yaw) - dy * math.sin(-robot_yaw)
         base_y = dx * math.sin(-robot_yaw) + dy * math.cos(-robot_yaw)
-        
+
         # 计算距离
         dist = math.sqrt(base_x * base_x + base_y * base_y)
-        
+
         # 计算角度（相对于 base_link 的 x 轴正方向，即机器人前方）
         angle_rad = math.atan2(base_y, base_x)
         angle_deg = math.degrees(angle_rad)
-        
+
         # 检查是否在距离范围内
         if dist > max_dist:
-            rospy.logwarn("check_approach: 目标点距离机器人超过 %d 米", max_dist)
-            return False
-        
+            return False, x, y
+
         # 检查是否在角度范围内（±angle_range/2 度）
         angle_threshold = angle_range / 2.0
         if abs(angle_deg) > angle_threshold:
-            rospy.logwarn("check_approach: 目标点角度超过 %d 度", angle_threshold)
-            return False
-        
-        rospy.loginfo("check_approach: 目标点在机器人前方 %d 米、±%d 度范围内", dist, angle_threshold)
-        return True
+            # 计算 angle_threshold 方向上的点
+            # 根据原始角度的正负确定使用 +angle_threshold 还是 -angle_threshold
+            if angle_deg > 0:
+                adjusted_angle_rad = math.radians(angle_threshold)
+            else:
+                adjusted_angle_rad = math.radians(-angle_threshold)
+
+            # 在 base_link 坐标系中计算调整后的点（保持距离 dist）
+            adjusted_base_x = dist * math.cos(adjusted_angle_rad)
+            adjusted_base_y = dist * math.sin(adjusted_angle_rad)
+
+            # 转换回 map 坐标系（先旋转，再平移）
+            adjusted_dx = adjusted_base_x * math.cos(robot_yaw) - adjusted_base_y * math.sin(robot_yaw)
+            adjusted_dy = adjusted_base_x * math.sin(robot_yaw) + adjusted_base_y * math.cos(robot_yaw)
+            adjusted_x = robot_x + adjusted_dx
+            adjusted_y = robot_y + adjusted_dy
+
+            return False, adjusted_x, adjusted_y
+
+        return True, x, y
 
     def get_gradient_yaw(self, costmap, gx, gy):
         """计算 (gx, gy) 处最外层边界的梯度方向 (指向障碍物)"""
@@ -231,6 +247,18 @@ class RobotGoalSender:
         while not rospy.is_shutdown():
             if self.latest_status == GoalStatus.SUCCEEDED:
                 rospy.loginfo("已到达目标点，任务完成")
+                break
+
+            if self.latest_status == GoalStatus.PREEMPTED:
+                rospy.loginfo("任务被预占，结束任务")
+                break
+
+            if self.latest_status == GoalStatus.ABORTED:
+                rospy.loginfo("任务被终止，结束任务")
+                break
+
+            if self.latest_status == GoalStatus.REJECTED:
+                rospy.loginfo("任务被拒绝，结束任务")
                 break
 
             if self.local_costmap is None or self.global_costmap is None:
@@ -315,7 +343,7 @@ class RobotGoalSender:
             )
 
             # 射线宽度检测参数
-            ray_width = 0.1  # 射线宽度（米）
+            ray_width = 0.01  # 射线宽度（米）
             # 计算垂直于射线方向的单位向量（用于宽度检测）
             perp_angle = ray_angle + math.pi / 2.0
             perp_dx = math.cos(perp_angle)
@@ -482,10 +510,10 @@ class RobotGoalSender:
                     )
                     clear_costmaps()
                     rospy.loginfo("调用/move_base/clear_costmaps服务成功")
-                except rospy.ROSException as e:
-                    rospy.logwarn("等待/move_base/clear_costmaps服务超时: %s", str(e))
-                except Exception as e:
-                    rospy.logwarn("调用/move_base/clear_costmaps服务出错: %s", str(e))
+                except rospy.ROSException as exc:
+                    rospy.logwarn("等待/move_base/clear_costmaps服务超时: %s", str(exc))
+                except rospy.ServiceException as exc:
+                    rospy.logwarn("调用/move_base/clear_costmaps服务出错: %s", str(exc))
 
                 last_sent_x = (
                     final_x  # 依然使用 Costmap 坐标做阈值判断比较方便（因为都在动）
@@ -514,11 +542,11 @@ def approach(
     :param facing_obstacle: True=面向障碍物, False=背对障碍物
     :param vertical: 是否垂直于障碍物表面 (True) 或 保持连线方向 (False)
     """
-    global _sender_instance
-    if _sender_instance is None:
-        _sender_instance = RobotGoalSender()
+    global SENDER_INSTANCE
+    if SENDER_INSTANCE is None:
+        SENDER_INSTANCE = RobotGoalSender()
 
-    _sender_instance.execute(
+    SENDER_INSTANCE.execute(
         x, y, yaw, stop_dist, check_dist, facing_obstacle, vertical
     )
 
@@ -526,23 +554,25 @@ def approach(
 def check_approach(x, y, max_dist=2.0, angle_range=90.0):
     """
     检查点 (x, y) 是否在机器人 base_link 坐标面前指定角度范围内、指定距离内
-    
+
     :param x: 目标点 x 坐标 (Map Frame)
     :param y: 目标点 y 坐标 (Map Frame)
     :param max_dist: 最大距离（米），默认 2.0
     :param angle_range: 角度范围（度），默认 90.0（即 ±90 度，前方 180 度扇形）
-    :return: bool，如果在范围内返回 True，否则返回 False
-    
+    :return: (bool, x, y)，如果在范围内返回 (True, x, y)，否则返回 (False, adjusted_x, adjusted_y)
+             如果角度超过阈值，adjusted_x, adjusted_y 是 angle_threshold 方向上的点坐标
+
     示例：
         from approach import check_approach
-        if check_approach(5.0, 2.0):
+        success, target_x, target_y = check_approach(5.0, 2.0)
+        if success:
             print("目标点在机器人前方 2m、±90 度范围内")
     """
-    global _sender_instance
-    if _sender_instance is None:
-        _sender_instance = RobotGoalSender()
-    
-    return _sender_instance.check_approach(x, y, max_dist, angle_range)
+    global SENDER_INSTANCE
+    if SENDER_INSTANCE is None:
+        SENDER_INSTANCE = RobotGoalSender()
+
+    return SENDER_INSTANCE.check_approach(x, y, max_dist, angle_range)
 
 
 def approach_forward(
@@ -577,7 +607,7 @@ def approach_forward(
 
     # 创建TF buffer和listener
     tf_buffer = tf2_ros.Buffer()
-    tf_listener = tf2_ros.TransformListener(tf_buffer)
+    _tf_listener = tf2_ros.TransformListener(tf_buffer)
 
     # 等待TF数据
     rospy.sleep(0.5)
@@ -587,8 +617,12 @@ def approach_forward(
         transform = tf_buffer.lookup_transform(
             "map", "base_link", rospy.Time(0), rospy.Duration(2.0)
         )
-    except Exception as e:
-        rospy.logerr("无法获取机器人位置 (map -> base_link): %s" % str(e))
+    except (
+        tf2_ros.LookupException,
+        tf2_ros.ConnectivityException,
+        tf2_ros.ExtrapolationException,
+    ) as exc:
+        rospy.logerr("无法获取机器人位置 (map -> base_link): %s", str(exc))
         return
 
     # 提取位置
@@ -626,42 +660,47 @@ def approach_forward(
     )
 
 
-if __name__ == "__main__":
+def main():
+    """
+    命令行入口：
+      - python approach.py forward [distance] [stop_dist]
+      - python approach.py x y [yaw] [stop_dist]
+    """
     if len(sys.argv) > 1 and sys.argv[1] == "forward":
         # 模式：向正前方approach
         # python approach.py forward [distance] [stop_dist]
-        distance = 1.0
+        forward_distance = 1.0
         if len(sys.argv) > 2:
-            distance = float(sys.argv[2])
+            forward_distance = float(sys.argv[2])
 
-        stop = 0.3
+        stop_dist_value = 0.3
         if len(sys.argv) > 3:
-            stop = float(sys.argv[3])
+            stop_dist_value = float(sys.argv[3])
 
-        approach_forward(distance=distance, stop_dist=stop)
+        approach_forward(distance=forward_distance, stop_dist=stop_dist_value)
     elif len(sys.argv) > 2:
         # 模式：指定坐标approach
         # python approach.py x y [yaw] [stop_dist]
-        tx = float(sys.argv[1])
-        ty = float(sys.argv[2])
+        target_x = float(sys.argv[1])
+        target_y = float(sys.argv[2])
 
         target_yaw = None
         if len(sys.argv) > 3 and sys.argv[3] != "None":
             # 输入为角度，转换为弧度
             target_yaw = math.radians(float(sys.argv[3]))
 
-        stop = 1.0
+        stop_dist_value = 1.0
         if len(sys.argv) > 4:
-            stop = float(sys.argv[4])
+            stop_dist_value = float(sys.argv[4])
 
         rospy.init_node("approach_test", anonymous=True)
         approach(
-            tx,
-            ty,
+            target_x,
+            target_y,
             yaw=target_yaw,
-            stop_dist=stop,
+            stop_dist=stop_dist_value,
             check_dist=2.0,
-            facing_obstacle=True,
+            facing_obstacle=False,
             vertical=True,
         )
         rospy.sleep(0.5)
@@ -676,3 +715,7 @@ if __name__ == "__main__":
         print("  from approach import approach_forward")
         print("  approach_forward(distance=1.0)")
         print("  approach_forward(distance=1.5, stop_dist=0.5)")
+
+
+if __name__ == "__main__":
+    main()

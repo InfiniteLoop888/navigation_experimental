@@ -77,6 +77,11 @@ class RosRecordingNode:
         )  # 存储只有一个消息的话题 {topic: (msg, timestamp)}
         self.buffer_lock = threading.Lock()
 
+        # 内存管理参数
+        self.max_buffer_size = rospy.get_param("~max_buffer_size", 50000)  # 最大消息数量
+        self.max_single_buffer_size = rospy.get_param("~max_single_buffer_size", 1000)  # 单消息缓冲区最大大小
+        self.aggressive_cleanup_threshold = rospy.get_param("~aggressive_cleanup_threshold", 0.8)  # 触发激进清理的阈值（80%）
+
         # 录制开始时间（使用第一个话题的时间）
         self.recording_start_time = None
 
@@ -109,6 +114,8 @@ class RosRecordingNode:
 
         rospy.loginfo("ROS消息记录节点已启动")
         rospy.loginfo("缓冲时长: {} 秒".format(self.buffer_duration))
+        rospy.loginfo("最大缓冲区大小: {} 条消息".format(self.max_buffer_size))
+        rospy.loginfo("单消息缓冲区大小: {} 个话题".format(self.max_single_buffer_size))
         if self.record_all:
             rospy.loginfo("录制模式: 所有话题 (动态发现)")
         else:
@@ -266,8 +273,22 @@ class RosRecordingNode:
                 self.recording_start_time = current_time
 
             # 限制缓冲区大小（防止内存溢出）
-            if len(self.message_buffer) > 100000:  # 最多10万条消息
-                self.message_buffer.popleft()
+            # 如果超过阈值，进行激进清理
+            buffer_size = len(self.message_buffer)
+            if buffer_size > self.max_buffer_size:
+                # 超过最大限制，删除最旧的消息
+                removed_count = 0
+                while len(self.message_buffer) > self.max_buffer_size * self.aggressive_cleanup_threshold:
+                    self.message_buffer.popleft()
+                    removed_count += 1
+                if removed_count > 0:
+                    rospy.logwarn_throttle(5.0, "缓冲区超过限制，已删除 {} 条最旧消息".format(removed_count))
+            
+            # 限制单消息缓冲区大小
+            if len(self.single_message_buffer) > self.max_single_buffer_size:
+                # 删除最旧的单消息（FIFO）
+                oldest_topic = next(iter(self.single_message_buffer))
+                del self.single_message_buffer[oldest_topic]
 
         # 检查 /rosout 消息触发自动保存
         if topic == "/rosout":
@@ -301,12 +322,18 @@ class RosRecordingNode:
                 cutoff_time = current_time - rospy.Duration(self.buffer_duration)
 
                 with self.buffer_lock:
+                    # 如果还没有收到任何消息，跳过清理
+                    if self.recording_start_time is None:
+                        rate.sleep()
+                        continue
+
                     # 统计当前缓冲区中每个话题的消息数量
                     topic_counts.clear()
                     for topic, _, _ in self.message_buffer:
                         topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
                     # 从队列前端删除过期消息，将单消息话题移到专门缓冲区
+                    removed_count = 0
                     while self.message_buffer:
                         topic, msg, timestamp = self.message_buffer[0]
                         if timestamp >= cutoff_time:
@@ -315,12 +342,34 @@ class RosRecordingNode:
                         elif topic_counts.get(topic, 0) <= 1:
                             # 过期的消息，但如果该话题只有一条消息，移到单消息缓冲区
                             self.message_buffer.popleft()
-                            # 直接存储或更新该话题（字典会自动覆盖）
-                            self.single_message_buffer[topic] = (msg, timestamp)
+                            # 如果单消息缓冲区未满，才添加
+                            if len(self.single_message_buffer) < self.max_single_buffer_size:
+                                self.single_message_buffer[topic] = (msg, timestamp)
+                            removed_count += 1
                         else:
                             # 过期的多消息话题，删除第一条消息
                             self.message_buffer.popleft()
                             topic_counts[topic] -= 1
+                            removed_count += 1
+
+                    # # 清理单消息缓冲区中过期的消息
+                    # single_removed = []
+                    # for topic, (_, timestamp) in self.single_message_buffer.items():
+                    #     if timestamp < cutoff_time:
+                    #         single_removed.append(topic)
+                    # for topic in single_removed:
+                    #     del self.single_message_buffer[topic]
+
+                    # 如果缓冲区仍然过大，进行激进清理
+                    buffer_size = len(self.message_buffer)
+                    if buffer_size > self.max_buffer_size * self.aggressive_cleanup_threshold:
+                        aggressive_removed = 0
+                        target_size = int(self.max_buffer_size * self.aggressive_cleanup_threshold)
+                        while len(self.message_buffer) > target_size:
+                            self.message_buffer.popleft()
+                            aggressive_removed += 1
+                        if aggressive_removed > 0:
+                            rospy.logwarn_throttle(5.0, "激进清理：删除了 {} 条消息以降低内存使用".format(aggressive_removed))
 
                     # 获取状态信息（在锁内）
                     buffer_size = len(self.message_buffer)
@@ -348,11 +397,16 @@ class RosRecordingNode:
 
                 # 发布状态（在锁外）
                 # 计算录制时长（使用第一个话题的时间）
-                recording_duration = (current_time - self.recording_start_time).to_sec()
+                if self.recording_start_time is not None:
+                    recording_duration = (current_time - self.recording_start_time).to_sec()
+                else:
+                    recording_duration = 0.0
 
                 if total_buffer_size > 0:
+                    # 计算缓冲区使用率
+                    buffer_usage = (total_buffer_size / self.max_buffer_size) * 100.0
                     status_msg = "录制时长: {:.1f}秒 | 缓冲区: {} 条消息 (多消息: {}, 单消息: {}) | \
-                        最旧: {:.1f}秒前 | 话题: {}个 (单条消息: {}个)".format(
+                        最旧: {:.1f}秒前 | 话题: {}个 (单条消息: {}个) | 使用率: {:.1f}%".format(
                         recording_duration,
                         total_buffer_size,
                         buffer_size,
@@ -360,13 +414,18 @@ class RosRecordingNode:
                         oldest_age,
                         total_topics,
                         single_message_topics,
+                        buffer_usage,
                     )
+                    # 如果使用率过高，使用警告级别
+                    if buffer_usage > 80:
+                        rospy.logwarn_throttle(2.0, status_msg)
+                    else:
+                        rospy.loginfo_throttle(5.0, status_msg)
                 else:
                     status_msg = "录制时长: {:.1f}秒 | 缓冲区: 空".format(
                         recording_duration
                     )
-
-                rospy.loginfo(status_msg)
+                    rospy.loginfo_throttle(10.0, status_msg)
 
             except Exception as e:  # pylint: disable=broad-except
                 rospy.logerr("清理消息时出错: {}".format(str(e)))
@@ -419,7 +478,17 @@ class RosRecordingNode:
                     for topic, msg, timestamp in self.message_buffer:
                         all_messages.append((topic, msg, timestamp))
 
-                    earliest_time = self.message_buffer[0][2]
+                    # 确定最早时间（用于单消息缓冲区）
+                    if self.message_buffer:
+                        earliest_time = self.message_buffer[0][2]
+                    elif self.single_message_buffer:
+                        # 如果只有单消息缓冲区，使用其中最早的时间
+                        earliest_time = min(
+                            timestamp for _, timestamp in self.single_message_buffer.values()
+                        )
+                    else:
+                        earliest_time = current_time
+                    
                     for topic, (
                         msg,
                         _,

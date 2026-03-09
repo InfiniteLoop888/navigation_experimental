@@ -96,11 +96,7 @@ if [ "$DELAY" != "0" ]; then
     ROSBAG_CMD="$ROSBAG_CMD --delay=$DELAY"
 fi
 
-# 添加循环选项
-if [ "$LOOP" = "true" ]; then
-    echo "启用循环播放"
-    ROSBAG_CMD="$ROSBAG_CMD --loop"
-fi
+# 循环选项不再使用 --loop，而是命令级循环（避免第二遍丢失latched话题）
 
 # 添加话题过滤
 if [ -n "$TOPICS" ] && [ "$TOPICS" != "" ] && [ "$TOPICS" != "''" ]; then
@@ -142,7 +138,15 @@ fi
 
 echo "执行rosbag命令: $ROSBAG_CMD"
 
-# 执行rosbag play命令
-eval $ROSBAG_CMD
-
-echo "rosbag播放完成"
+# 执行：若需要循环，则命令级循环重启rosbag play；否则单次执行
+if [ "$LOOP" = "true" ]; then
+    # 捕获Ctrl-C优雅退出
+    trap "echo 停止循环; exit 0" SIGINT SIGTERM
+    while true; do
+        eval $ROSBAG_CMD
+        echo "重新播放开始..."
+    done
+else
+    eval $ROSBAG_CMD
+    echo "rosbag播放完成"
+fi

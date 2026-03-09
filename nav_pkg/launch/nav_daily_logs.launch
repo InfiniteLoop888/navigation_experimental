@@ -2,12 +2,12 @@
     <!--- Run move_base with daily log rotation -->
     <node pkg="move_base" type="move_base" name="move_base" respawn="false" output="screen">
 
-        <rosparam file="$(dirname)/../config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+        <rosparam file="$(dirname)/../config/default/costmap_common_params.yaml" command="load" ns="global_costmap" />
         <rosparam file="$(dirname)/../config/costmap_common_params.yaml" command="load" ns="local_costmap" />
         <rosparam file="$(dirname)/../config/global_costmap_params.yaml" command="load" />
         <rosparam file="$(dirname)/../config/local_costmap_params.yaml" command="load" />
 
-        <param name="SBPLLatticePlanner/primitive_filename" value="$(dirname)/../mprim2/A2D.mprim" />
+        <param name="SBPLLatticePlanner/primitive_filename" value="$(dirname)/../mprim/unicycle_diff_5cm.mprim" />
         <rosparam file="$(dirname)/../config/move_base_params.yaml" command="load" />
         <!-- <param name="base_global_planner" value="global_planner/GlobalPlanner" /> -->
         <rosparam file="$(dirname)/../config/sbpl_global_planner_params.yaml" command="load" />

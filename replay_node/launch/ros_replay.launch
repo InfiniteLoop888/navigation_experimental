@@ -7,7 +7,7 @@
     
     <!-- 基本播放参数 -->
     <arg name="rate" default="1.0" doc="播放速度倍数 (1.0=正常速度, 2.0=2倍速)"/>
-    <arg name="loop" default="false" doc="是否循环播放"/>
+    <arg name="loop" default="true" doc="是否循环播放"/>
     <arg name="topics" default="" doc="指定要播放的话题，用逗号分隔"/>
     <arg name="start_time" default="0" doc="开始播放的时间点（秒）"/>
     <arg name="duration" default="0" doc="播放持续时间（秒），0表示播放到结束"/>

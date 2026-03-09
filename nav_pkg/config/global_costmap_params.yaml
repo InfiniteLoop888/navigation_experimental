@@ -5,7 +5,7 @@ global_costmap:
   update_frequency: 3.0
   publish_frequency: 3.0
   transform_tolerance: 1.0
-
+  inflation_radius: 0.5
 recovery_behaviors:
   - name: 'conservative_reset'
     type: 'clear_costmap_recovery/ClearCostmapRecovery'

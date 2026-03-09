@@ -70,20 +70,21 @@ add_dependencies(move_base_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXP
 target_link_libraries(move_base_node move_base)
 set_target_properties(move_base_node PROPERTIES OUTPUT_NAME move_base)
 
-# simple_path_follower plugin
-add_library(simple_path_follower
+# simple_path_follower plugin (unique target name to avoid collision with nav_pkg)
+add_library(move_base_simple_path_follower
   src/simple_path_follower.cpp
 )
-target_link_libraries(simple_path_follower
+set_target_properties(move_base_simple_path_follower PROPERTIES OUTPUT_NAME simple_path_follower)
+target_link_libraries(move_base_simple_path_follower
     ${catkin_LIBRARIES}
 )
-add_dependencies(simple_path_follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(move_base_simple_path_follower ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 # Create lib directory and symlink for plugin loading in devel space
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib)
-add_custom_command(TARGET simple_path_follower POST_BUILD
+add_custom_command(TARGET move_base_simple_path_follower POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E create_symlink
-    $<TARGET_FILE:simple_path_follower>
+    $<TARGET_FILE:move_base_simple_path_follower>
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/libsimple_path_follower.so
     COMMENT "Creating symlink for plugin loading"
 )
@@ -97,7 +98,7 @@ install(
 install(
     TARGETS
         move_base
-        simple_path_follower
+        move_base_simple_path_follower
     DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 )
 
